@@ -7,26 +7,7 @@
   to = "/.netlify/functions/:splat"
   status = 200
 
-# --- 아래 헤더 설정 추가 ---
 [[headers]]
-  # 모든 페이지에 대해 적용
   for = "/*"
   [headers.values]
-    # 기존 CSP가 있다면 여기에 추가하고, 없다면 새로 만듭니다.
-    # Netlify의 기본 CSP를 유지하면서 'unsafe-eval'만 추가하려면 복잡할 수 있으므로,
-    # 여기서는 필요한 최소한의 CSP를 설정하거나, 좀 더 관대한 설정을 우선 적용해봅니다.
-    # 주의: 'unsafe-eval'은 보안 위험을 수반하므로, 정말 필요한 경우에만 사용해야 합니다.
-    # 우리 코드에 명시적인 eval이 없다면, 다른 원인일 수도 있습니다.
-    # Content-Security-Policy = "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:;" 
-    # 위 라인은 너무 관대할 수 있습니다.
-    # 우선은 Netlify의 기본 CSP를 해제하지 않고 'unsafe-eval'을 추가하는 시도를 해봅니다.
-    # 만약 Netlify가 기본 CSP를 강력하게 적용한다면, 아래처럼 특정 부분만 수정하기 어려울 수 있습니다.
-    # 이 경우 Netlify 커뮤니티나 문서를 참고하여 기본 CSP를 가져와 수정해야 할 수 있습니다.
-
-    # 가장 간단한 시도 (Netlify 기본 CSP에 추가를 시도. 안될 수도 있음):
-    # Content-Security-Policy = "script-src-elem 'self' 'unsafe-inline' 'unsafe-eval';"
-    
-    # 또는 좀 더 명시적인 CSP 설정 (다른 필요한 소스도 고려해야 함)
-    # 이 설정은 예시이며, 실제 필요한 소스에 따라 달라질 수 있습니다.
-    # 'self'는 현재 도메인을 의미, https:는 모든 https 소스를 허용.
     Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self' https://financialmodelingprep.com;"
