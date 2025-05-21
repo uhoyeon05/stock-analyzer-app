@@ -1,19 +1,14 @@
 // script.js
 
-// Chart.js 인스턴스를 저장할 변수 (차트 업데이트 및 파괴 시 사용)
-let priceChartInstance = null;
-
-// Chart.js 라이브러리가 로드되었는지 확인하고, 로드될 때까지 기다리는 함수 (선택적, 보통은 바로 사용)
 function ensureChartJsIsReady(callback) {
-    if (typeof Chart !== 'undefined' && typeof moment !== 'undefined') {
-        // console.log("Chart.js and Moment.js libraries are ready.");
+    if (typeof window.Chart !== 'undefined' && typeof window.moment !== 'undefined' && typeof Chart.register === 'function' && typeof window.ChartAnnotation === 'object') { // ChartAnnotation 플러그인도 확인
+        // console.log("Chart.js, Moment.js, and Annotation Plugin are ready.");
         callback();
     } else {
-        console.warn("Chart.js or Moment.js not ready yet, retrying in 200ms...");
+        console.warn("Chart.js, Moment.js, or Annotation Plugin not ready yet, retrying in 200ms...");
         setTimeout(() => ensureChartJsIsReady(callback), 200);
     }
 }
-
 
 window.onload = () => {
     // --- HTML 요소 가져오기 ---
@@ -29,9 +24,8 @@ window.onload = () => {
     const currentPriceSpan = document.getElementById('current-price');
     const dataDateSpan = document.getElementById('data-date');
 
-    // const priceChartContainer = document.getElementById('price-chart-wrapper'); // Chart.js는 canvas에 그림
     const priceChartCanvas = document.getElementById('price-chart-canvas');
-
+    let priceChartInstance = null;
 
     const fairValueSummaryP = document.getElementById('fair-value-summary');
 
@@ -69,11 +63,58 @@ window.onload = () => {
     let tickerDataStore = [];
     let currentStockData = null;
 
-    async function loadTickerData() { /* ... 이전과 동일 ... */ }
+    async function loadTickerData() {
+        try {
+            const response = await fetch('tickers.json');
+            if (!response.ok) throw new Error(`Ticker list fetch failed: ${response.status}`);
+            tickerDataStore = await response.json();
+        } catch (error) {
+            console.error("Error loading ticker data:", error);
+        }
+    }
     loadTickerData();
 
-    if (tickerInput && autocompleteList) { /* ... 이전과 동일 ... */ }
-    function closeAllLists(elmnt) { /* ... 이전과 동일 ... */ }
+    if (tickerInput && autocompleteList) {
+        tickerInput.addEventListener('input', function(e) {
+            const val = this.value;
+            autocompleteList.innerHTML = '';
+            if (!val || val.length < 1) {
+                autocompleteList.style.display = 'none';
+                return false;
+            }
+            let count = 0;
+            tickerDataStore.forEach(item => {
+                const pureSymbol = item.symbol.split('.')[0];
+                const searchText = val.toUpperCase();
+                const itemName = item.name.toUpperCase();
+                const itemSymbol = pureSymbol.toUpperCase();
+                if (((itemName && itemName.includes(searchText)) || (itemSymbol && itemSymbol.includes(searchText))) && count < 7) {
+                    const suggestionDiv = document.createElement("DIV");
+                    const escapedVal = val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    const regex = new RegExp(escapedVal, 'gi');
+                    const displayNameHTML = item.name.replace(regex, (match) => `<u>${match}</u>`);
+                    const displaySymbolHTML = item.symbol.replace(regex, (match) => `<u>${match}</u>`);
+                    suggestionDiv.innerHTML = `<strong>${displayNameHTML}</strong> (${displaySymbolHTML})`;
+                    suggestionDiv.addEventListener('click', function() {
+                        tickerInput.value = item.symbol;
+                        closeAllLists();
+                    });
+                    autocompleteList.appendChild(suggestionDiv);
+                    count++;
+                }
+            });
+            autocompleteList.style.display = count > 0 ? 'block' : 'none';
+        });
+    } else {
+        console.error("Ticker input or autocomplete list element not found.");
+    }
+
+    function closeAllLists(elmnt) {
+        if (autocompleteList && elmnt !== tickerInput && (!elmnt || !autocompleteList.contains(elmnt))) {
+            autocompleteList.innerHTML = '';
+            autocompleteList.style.display = 'none';
+        }
+    }
     document.addEventListener('click', (e) => closeAllLists(e.target));
 
     if (analyzeButton) {
@@ -112,29 +153,70 @@ window.onload = () => {
                 hideError();
                 const userAssumptions = getUserAssumptions();
                 const fairValuesResult = calculateFairValues(currentStockData, userAssumptions);
-                // 차트 업데이트는 Chart.js 방식으로 변경 필요
-                createOrUpdatePriceChart(currentStockData.historicalData, fairValuesResult.final); // Chart.js는 전체 차트를 다시 그림
+                createOrUpdatePriceChart(currentStockData.historicalData, fairValuesResult.final);
                 updateModelDetailsDisplays(currentStockData, userAssumptions, fairValuesResult.modelOutputs);
             });
         });
     } else { console.error("Recalculate button not found."); }
 
-    if (inputRf && inputErp) { /* ... 이전과 동일 ... */ }
-    function updateKeInput(betaValue) { /* ... 이전과 동일 ... */ }
-    function initializePageWithData(apiData) { /* ... 이전과 거의 동일, 차트 호출 부분만 변경됨 ... */
+    if (inputRf && inputErp) {
+      [inputRf, inputErp].forEach(input => {
+          if (input) {
+              input.addEventListener('change', () => {
+                  let betaToUse = 1.0;
+                  if (currentStockData && currentStockData.beta !== undefined && currentStockData.beta !== null) {
+                      betaToUse = currentStockData.beta;
+                  }
+                  updateKeInput(betaToUse);
+              });
+          }
+      });
+    }
+    
+    function updateKeInput(betaValue) {
+        if (!inputRf || !inputErp || !inputKe) return;
+        const rf = parseFloat(inputRf.value) || 0;
+        const erp = parseFloat(inputErp.value) || 0;
+        const beta = (betaValue !== undefined && betaValue !== null) ? parseFloat(betaValue) : 1.0;
+        const calculatedKe = rf + beta * erp;
+        inputKe.value = calculatedKe.toFixed(1);
+    }
+    
+    function initializePageWithData(apiData) {
         if (stockNameTitle) stockNameTitle.textContent = `${apiData.companyName || apiData.symbol} (${apiData.symbol || 'N/A'})`;
         if (currentPriceSpan) currentPriceSpan.textContent = apiData.price !== undefined ? apiData.price.toFixed(2) : 'N/A';
         if (dataDateSpan) dataDateSpan.textContent = 'API 제공 기준';
 
         if(apiEpsSpan) apiEpsSpan.textContent = apiData.eps !== undefined ? `$${apiData.eps.toFixed(2)}` : 'N/A';
-        // ... (기타 api 데이터 표시 부분은 이전과 동일)
+        if(apiBpsSpan) apiBpsSpan.textContent = apiData.bps !== undefined ? `$${apiData.bps.toFixed(2)}` : 'N/A';
+        if(apiDpsSpan) apiDpsSpan.textContent = apiData.dpsTTM !== undefined ? `$${apiData.dpsTTM.toFixed(2)}` : 'N/A';
+        if(apiPerSpan) apiPerSpan.textContent = apiData.peTTM !== undefined ? apiData.peTTM.toFixed(2) : 'N/A';
+        if(apiPbrSpan) apiPbrSpan.textContent = apiData.pbTTM !== undefined ? apiData.pbTTM.toFixed(2) : 'N/A';
+        if(apiDividendYieldSpan) apiDividendYieldSpan.textContent = apiData.dividendYieldTTM !== undefined ? (apiData.dividendYieldTTM * 100).toFixed(2) : 'N/A';
+        if(apiRoeSpan) apiRoeSpan.textContent = apiData.roeTTM !== undefined ? (apiData.roeTTM * 100).toFixed(2) : 'N/A';
+        const betaForDisplay = (apiData.beta !== undefined && apiData.beta !== null) ? apiData.beta.toFixed(2) : '1.00 (기본값)';
+        if(apiBetaSpan) apiBetaSpan.textContent = betaForDisplay;
+        if(dataBetaDisplaySpan) dataBetaDisplaySpan.textContent = betaForDisplay;
         if(apiPayoutRatioSpan) apiPayoutRatioSpan.textContent = apiData.payoutRatioTTM !== undefined ? (apiData.payoutRatioTTM * 100).toFixed(2) : 'N/A';
 
-
         if(inputPerLow) inputPerLow.value = 20; if(inputPerBase) inputPerBase.value = 25; if(inputPerHigh) inputPerHigh.value = 30;
-        // ... (기타 input 필드 초기화 부분은 이전과 동일) ...
-        if(inputG) inputG.value = (initialG * 100).toFixed(1);
+        if(inputPbrLow) inputPbrLow.value = 3.0; if(inputPbrBase) inputPbrBase.value = 5.0; if(inputPbrHigh) inputPbrHigh.value = 8.0;
+        if(inputRf) inputRf.value = 3.0; if(inputErp) inputErp.value = 5.0;
+        updateKeInput(apiData.beta);
 
+        // ★★★ initialG 선언 및 계산 위치 수정 ★★★
+        let initialG; // 함수 상단 또는 사용 직전에 선언
+        const keForGCalc = inputKe ? (parseFloat(inputKe.value) / 100) : 0.08;
+        if (apiData.roeTTM && apiData.payoutRatioTTM !== undefined && apiData.payoutRatioTTM >= 0 && apiData.payoutRatioTTM <=1 && apiData.roeTTM > 0) {
+            initialG = apiData.roeTTM * (1 - apiData.payoutRatioTTM);
+        } else if (apiData.roeTTM && apiData.roeTTM > 0) {
+            initialG = apiData.roeTTM * 0.5;
+        } else {
+            initialG = 0.05;
+        }
+        initialG = Math.min(initialG, keForGCalc * 0.85);
+        initialG = Math.max(0.02, initialG);
+        if(inputG) inputG.value = (initialG * 100).toFixed(1); // 이제 initialG가 선언된 후 사용됨
 
         const userAssumptions = getUserAssumptions();
         const fairValuesResult = calculateFairValues(apiData, userAssumptions);
@@ -144,93 +226,157 @@ window.onload = () => {
         
         showResults(); 
 
-        // Chart.js 차트 생성 호출
-        setTimeout(() => { // DOM이 확실히 그려진 후 차트 생성
+        setTimeout(() => {
             createOrUpdatePriceChart(apiData.historicalData, fairValuesResult.final);
-        }, 100);
+        }, 100); 
     }
 
-    function getUserAssumptions() { /* ... 이전과 동일 ... */ }
-    function calculateFairValues(apiData, assumptions) { /* ... 이전과 동일 ... */ }
-    function updateModelDetailsDisplays(apiData, assumptions, modelOutputs) { /* ... 이전과 동일 ... */ }
+    function getUserAssumptions() {
+        const keValue = inputKe ? parseFloat(inputKe.value) : NaN;
+        const gValue = inputG ? parseFloat(inputG.value) : NaN;
+        return {
+            perLow: inputPerLow ? parseFloat(inputPerLow.value) || 10 : 10,
+            perBase: inputPerBase ? parseFloat(inputPerBase.value) || 15 : 15,
+            perHigh: inputPerHigh ? parseFloat(inputPerHigh.value) || 20 : 20,
+            pbrLow: inputPbrLow ? parseFloat(inputPbrLow.value) || 1.0 : 1.0,
+            pbrBase: inputPbrBase ? parseFloat(inputPbrBase.value) || 1.5 : 1.5,
+            pbrHigh: inputPbrHigh ? parseFloat(inputPbrHigh.value) || 2.0 : 2.0,
+            ke: !isNaN(keValue) ? keValue / 100 : 0.08,
+            g: !isNaN(gValue) ? gValue / 100 : 0.03,
+        };
+    }
 
-    // --- Chart.js를 사용한 차트 생성 및 업데이트 함수 ---
+    function calculateFairValues(apiData, assumptions) {
+        const { perLow, perBase, perHigh, pbrLow, pbrBase, pbrHigh, ke, g } = assumptions;
+        let modelOutputs = { PER: {low:0, base:0, high:0}, PBR: {low:0, base:0, high:0}, Intrinsic: {low:0, base:0, high:0, name: "내재가치 (계산 불가)", formula: ""} };
+
+        if (apiData.eps !== undefined && apiData.eps > 0) {
+            modelOutputs.PER = {low: apiData.eps * perLow, base: apiData.eps * perBase, high: apiData.eps * perHigh};
+        }
+        if (apiData.bps !== undefined && apiData.bps > 0) {
+            modelOutputs.PBR = {low: apiData.bps * pbrLow, base: apiData.bps * pbrBase, high: apiData.bps * pbrHigh};
+        }
+        
+        if (g < ke && ke > 0) {
+            let intrinsicBase = 0;
+            if (apiData.dpsTTM !== undefined && apiData.dpsTTM > 0) {
+                modelOutputs.Intrinsic.name = "DDM (배당할인)";
+                intrinsicBase = (apiData.dpsTTM * (1 + g)) / (ke - g);
+                modelOutputs.Intrinsic.formula = `DPS($${apiData.dpsTTM.toFixed(2)}) * (1 + ${(g*100).toFixed(1)}%) / (${(ke*100).toFixed(1)}% - ${(g*100).toFixed(1)}%)`;
+            } else if (apiData.eps !== undefined && apiData.eps > 0) {
+                modelOutputs.Intrinsic.name = "EPS 성장 모델";
+                intrinsicBase = (apiData.eps * (1 + g)) / (ke - g);
+                modelOutputs.Intrinsic.formula = `EPS($${apiData.eps.toFixed(2)}) * (1 + ${(g*100).toFixed(1)}%) / (${(ke*100).toFixed(1)}% - ${(g*100).toFixed(1)}%)`;
+            }
+            if (intrinsicBase > 0 && isFinite(intrinsicBase)) {
+                modelOutputs.Intrinsic.base = intrinsicBase;
+                modelOutputs.Intrinsic.low = intrinsicBase * 0.8;
+                modelOutputs.Intrinsic.high = intrinsicBase * 1.2;
+            } else {
+                modelOutputs.Intrinsic.name = "내재가치 (산출값 유효X)";
+            }
+        }
+        
+        let fvLowSum = 0, fvBaseSum = 0, fvHighSum = 0, validModels = 0;
+        [modelOutputs.PER, modelOutputs.PBR, modelOutputs.Intrinsic].forEach(fv => {
+            if (fv.base > 0 && isFinite(fv.base)) {
+                fvLowSum += fv.low; fvBaseSum += fv.base; fvHighSum += fv.high;
+                validModels++;
+            }
+        });
+
+        let finalFvLow = 0, finalFvBase = 0, finalFvHigh = 0;
+        if (validModels > 0) {
+            finalFvLow = fvLowSum / validModels;
+            finalFvBase = fvBaseSum / validModels;
+            finalFvHigh = fvHighSum / validModels;
+        } else {
+            showError("유효한 평가 모델 결과를 산출할 수 없습니다.");
+        }
+        return { final: {low: finalFvLow, base: finalFvBase, high: finalFvHigh}, modelOutputs };
+    }
+
+    function updateModelDetailsDisplays(apiData, assumptions, modelOutputs) {
+        const { ke, g } = assumptions; 
+
+        if(modelEpsPerSpan) modelEpsPerSpan.textContent = apiData.eps !== undefined ? `$${apiData.eps.toFixed(2)}` : 'N/A';
+        if(perValueRangeSpan) perValueRangeSpan.textContent = `$${modelOutputs.PER.low.toFixed(2)} / $${modelOutputs.PER.base.toFixed(2)} / $${modelOutputs.PER.high.toFixed(2)}`;
+        
+        if(modelBpsPbrSpan) modelBpsPbrSpan.textContent = apiData.bps !== undefined ? `$${apiData.bps.toFixed(2)}` : 'N/A';
+        if(pbrValueRangeSpan) pbrValueRangeSpan.textContent = `$${modelOutputs.PBR.low.toFixed(2)} / $${modelOutputs.PBR.base.toFixed(2)} / $${modelOutputs.PBR.high.toFixed(2)}`;
+        
+        if(intrinsicModelNameTitleSpan) intrinsicModelNameTitleSpan.textContent = modelOutputs.Intrinsic.name + ":";
+        if(intrinsicFormulaDisplaySpan) intrinsicFormulaDisplaySpan.textContent = modelOutputs.Intrinsic.formula || "N/A";
+        if(intrinsicValueRangeSpan) intrinsicValueRangeSpan.textContent = `$${modelOutputs.Intrinsic.low.toFixed(2)} / $${modelOutputs.Intrinsic.base.toFixed(2)} / $${modelOutputs.Intrinsic.high.toFixed(2)}`;
+
+        if(intrinsicModelDescriptionDiv) {
+            let desc = "";
+            if (modelOutputs.Intrinsic.name.includes("DDM")) {
+                desc = "배당할인모형(DDM)은 기업이 미래에 지급할 것으로 예상되는 배당금들을 현재가치로 할인하여 기업의 내재가치를 평가하는 방법입니다. 안정적으로 배당을 지급하는 성숙 기업에 비교적 적합합니다.";
+            } else if (modelOutputs.Intrinsic.name.includes("EPS 성장")) {
+                desc = "EPS 성장 모델은 기업의 미래 주당순이익(EPS) 성장을 바탕으로 현재가치를 평가하는 방법입니다. 꾸준히 이익이 성장하는 기업 또는 배당을 지급하지 않는 성장주 평가에 참고할 수 있습니다.";
+            } else {
+                desc = "내재가치 모델을 계산하기 위한 조건(예: 성장률 < 요구수익률)이 충족되지 않았거나, 유효한 산출값이 나오지 않았습니다.";
+            }
+            desc += `<br>주요 가정인 요구수익률(Ke)은 ${ (ke * 100).toFixed(1) }% (투자자가 기대하는 최소 수익률), 성장률(g)은 ${ (g * 100).toFixed(1) }% (미래 이익/배당의 연평균 성장 예상치)로 설정되었습니다. 이 값들의 작은 변화에도 평가 결과가 크게 달라질 수 있습니다.`;
+            intrinsicModelDescriptionDiv.innerHTML = desc;
+        }
+    }
+
     function createOrUpdatePriceChart(historicalData, fairValueResults) {
-        if (!priceChartCanvas) {
-            console.error("HTML에서 #price-chart-canvas 요소를 찾을 수 없습니다.");
+        const chartContainerEl = document.getElementById('price-chart-container');
+        if (!chartContainerEl) {
+            console.error("CRITICAL: #price-chart-container HTML 요소를 찾을 수 없습니다!");
             return;
         }
+        chartContainerEl.innerHTML = '';
+
         if (!historicalData || historicalData.length === 0) {
-            const ctx = priceChartCanvas.getContext('2d');
-            ctx.clearRect(0, 0, priceChartCanvas.width, priceChartCanvas.height); // 이전 차트 지우기
-            priceChartCanvas.style.display = 'block'; // 보이도록 설정
-            ctx.font = "16px Arial";
-            ctx.textAlign = "center";
-            ctx.fillText("주가 차트 데이터를 가져올 수 없습니다.", priceChartCanvas.width / 2, priceChartCanvas.height / 2);
+            if (chartContainerEl) chartContainerEl.textContent = '주가 차트 데이터를 가져올 수 없습니다.';
+            return;
+        }
+
+        if (typeof window.Chart === 'undefined' || typeof window.moment === 'undefined' || typeof Chart.register !== 'function' || typeof window.ChartAnnotation === 'undefined') {
+            console.error('CRITICAL: Chart.js, Moment.js, 또는 Annotation 플러그인이 제대로 로드되지 않았습니다.');
+            if (chartContainerEl) chartContainerEl.textContent = '차트 라이브러리 로드 오류 (Chart.js/Moment.js/Annotation).';
+            return;
+        }
+        Chart.register(window.ChartAnnotation); // Annotation 플러그인 등록
+
+        const containerWidth = chartContainerEl.clientWidth;
+        const containerHeight = chartContainerEl.clientHeight;
+
+        if (containerWidth <= 0 || containerHeight <= 0) {
+            console.warn("차트 컨테이너(#price-chart-container)의 크기가 유효하지 않습니다. CSS에서 height가 명시적으로 설정되었고, 부모 요소들이 화면에 보이는지 확인하세요.");
+            if (chartContainerEl) chartContainerEl.textContent = '차트 영역 크기 오류 (CSS height: 400px; 확인)';
             return;
         }
         
-        // 기존 차트 인스턴스가 있으면 파괴
-        if (priceChartInstance) {
-            priceChartInstance.destroy();
-            priceChartInstance = null;
-        }
+        const labels = historicalData.map(d => d.time);
+        const closePrices = historicalData.map(d => d.close);
+        const volumes = historicalData.map(d => d.volume);
 
-        const labels = historicalData.map(d => d.time); // 날짜
-        const closePrices = historicalData.map(d => d.close); // 종가
-        const volumes = historicalData.map(d => d.volume); // 거래량
-
-        // 적정주가 선을 위한 Annotation 플러그인 데이터 구성
         const annotations = {};
         if (fairValueResults.base > 0 && isFinite(fairValueResults.base)) {
             annotations['fairValueBaseLine'] = {
-                type: 'line',
-                yMin: fairValueResults.base,
-                yMax: fairValueResults.base,
-                borderColor: 'rgba(0, 123, 255, 0.8)',
-                borderWidth: 2,
-                label: {
-                    content: `기본: $${fairValueResults.base.toFixed(2)}`,
-                    enabled: true,
-                    position: 'end',
-                    backgroundColor: 'rgba(0, 123, 255, 0.8)',
-                    color: 'white',
-                    font: { weight: 'bold' }
-                }
+                type: 'line', yMin: fairValueResults.base, yMax: fairValueResults.base,
+                borderColor: 'rgba(0, 123, 255, 0.8)', borderWidth: 2,
+                label: { content: `기본: $${fairValueResults.base.toFixed(2)}`, enabled: true, position: 'end', backgroundColor: 'rgba(0, 123, 255, 0.8)', color: 'white', font: { weight: 'bold' } }
             };
         }
+        // ... (최저, 최고 적정주가선 annotation 추가 로직 - 이전과 동일하게)
         if (fairValueResults.low > 0 && isFinite(fairValueResults.low)) {
             annotations['fairValueLowLine'] = {
-                type: 'line',
-                yMin: fairValueResults.low,
-                yMax: fairValueResults.low,
-                borderColor: 'rgba(255, 120, 117, 0.7)',
-                borderWidth: 1,
-                borderDash: [6, 6],
-                label: {
-                    content: `최저: $${fairValueResults.low.toFixed(2)}`,
-                    enabled: true,
-                    position: 'end',
-                    backgroundColor: 'rgba(255, 120, 117, 0.7)',
-                    color: 'white'
-                }
+                type: 'line', yMin: fairValueResults.low, yMax: fairValueResults.low,
+                borderColor: 'rgba(255, 120, 117, 0.7)', borderWidth: 1, borderDash: [6, 6],
+                label: { content: `최저: $${fairValueResults.low.toFixed(2)}`, enabled: true, position: 'end', backgroundColor: 'rgba(255, 120, 117, 0.7)', color: 'white'}
             };
         }
         if (fairValueResults.high > 0 && isFinite(fairValueResults.high)) {
             annotations['fairValueHighLine'] = {
-                type: 'line',
-                yMin: fairValueResults.high,
-                yMax: fairValueResults.high,
-                borderColor: 'rgba(0, 180, 130, 0.7)',
-                borderWidth: 1,
-                borderDash: [6, 6],
-                label: {
-                    content: `최고: $${fairValueResults.high.toFixed(2)}`,
-                    enabled: true,
-                    position: 'end',
-                    backgroundColor: 'rgba(0, 180, 130, 0.7)',
-                    color: 'white'
-                }
+                type: 'line', yMin: fairValueResults.high, yMax: fairValueResults.high,
+                borderColor: 'rgba(0, 180, 130, 0.7)', borderWidth: 1, borderDash: [6, 6],
+                label: { content: `최고: $${fairValueResults.high.toFixed(2)}`, enabled: true, position: 'end', backgroundColor: 'rgba(0, 180, 130, 0.7)', color: 'white'}
             };
         }
 
@@ -239,48 +385,31 @@ window.onload = () => {
             labels: labels,
             datasets: [
                 {
-                    type: 'line', // 주가 라인 차트
-                    label: '종가',
-                    data: closePrices,
-                    borderColor: 'rgb(75, 192, 192)',
-                    backgroundColor: 'rgba(75, 192, 192, 0.5)',
-                    yAxisID: 'y-axis-price',
-                    tension: 0.1
+                    type: 'line', label: '종가', data: closePrices,
+                    borderColor: 'rgb(75, 192, 192)', backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                    yAxisID: 'y-axis-price', tension: 0.1
                 },
                 {
-                    type: 'bar', // 거래량 바 차트
-                    label: '거래량',
-                    data: volumes,
-                    backgroundColor: 'rgba(153, 102, 255, 0.5)',
-                    borderColor: 'rgb(153, 102, 255)',
+                    type: 'bar', label: '거래량', data: volumes,
+                    backgroundColor: 'rgba(153, 102, 255, 0.5)', borderColor: 'rgb(153, 102, 255)',
                     yAxisID: 'y-axis-volume',
                 }
             ]
         };
 
         const config = {
-            // type: 'line', // 기본 타입을 설정할 수 있으나, datasets에서 개별적으로 설정
             data: data,
             options: {
-                responsive: true,
-                maintainAspectRatio: false, // 이 옵션과 컨테이너 div의 height 설정이 중요
-                interaction: {
-                    mode: 'index',
-                    intersect: false,
-                },
+                responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false, },
                 stacked: false,
                 plugins: {
-                    title: {
-                        display: true,
-                        text: '주가 및 거래량 (1년)'
-                    },
+                    title: { display: true, text: '주가 및 거래량 (1년)' },
                     tooltip: {
-                        callbacks: { // 툴팁에 $ 표시 및 소수점 정리
+                        callbacks: {
                             label: function(context) {
                                 let label = context.dataset.label || '';
-                                if (label) {
-                                    label += ': ';
-                                }
+                                if (label) { label += ': '; }
                                 if (context.parsed.y !== null) {
                                     if (context.dataset.yAxisID === 'y-axis-price') {
                                         label += new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(context.parsed.y);
@@ -292,80 +421,78 @@ window.onload = () => {
                             }
                         }
                     },
-                    annotation: { // Annotation 플러그인 설정
-                        annotations: annotations
-                    }
+                    annotation: { annotations: annotations }
                 },
                 scales: {
-                    x: { // 시간 축 설정
+                    x: {
                         type: 'time',
-                        time: {
-                            unit: 'month', // 데이터 기간에 따라 'day', 'week', 'month' 등 자동 또는 수동 설정
-                             tooltipFormat: 'YYYY-MM-DD', // 툴팁에 표시될 날짜 형식
-                             displayFormats: { // 축에 표시될 날짜 형식
-                                day: 'MM/DD',
-                                week: 'MMM DD',
-                                month: 'YYYY MMM'
-                            }
-                        },
-                        title: {
-                            display: true,
-                            text: '날짜'
-                        }
+                        time: { unit: 'month', tooltipFormat: 'YYYY-MM-DD', displayFormats: { day: 'MM/DD', month: 'YYYY MMM'} },
+                        title: { display: true, text: '날짜' }
                     },
-                    'y-axis-price': { // 주가 Y축 (왼쪽)
-                        type: 'linear',
-                        display: true,
-                        position: 'left',
-                        title: {
-                            display: true,
-                            text: '주가 ($)'
-                        },
-                        ticks: {
-                            callback: function(value, index, values) {
-                                return '$' + value.toFixed(2);
-                            }
-                        }
+                    'y-axis-price': {
+                        type: 'linear', display: true, position: 'left',
+                        title: { display: true, text: '주가 ($)' },
+                        ticks: { callback: function(value) { return '$' + value.toFixed(2); } }
                     },
-                    'y-axis-volume': { // 거래량 Y축 (오른쪽)
-                        type: 'linear',
-                        display: true,
-                        position: 'right',
-                        title: {
-                            display: true,
-                            text: '거래량'
-                        },
-                        grid: {
-                            drawOnChartArea: false, // 거래량 축의 그리드 라인은 그리지 않음
-                        },
-                        ticks: {
-                             callback: function(value, index, values) {
-                                if (value >= 1000000) return (value / 1000000) + 'M';
-                                if (value >= 1000) return (value / 1000) + 'K';
-                                return value;
-                            }
-                        }
+                    'y-axis-volume': {
+                        type: 'linear', display: true, position: 'right',
+                        title: { display: true, text: '거래량' },
+                        grid: { drawOnChartArea: false, },
+                        ticks: { callback: function(value) {
+                            if (value >= 1000000) return (value / 1000000) + 'M';
+                            if (value >= 1000) return (value / 1000) + 'K';
+                            return value;
+                        }}
                     }
                 }
             }
         };
         
         if (priceChartCanvas) {
+            if (priceChartInstance) { // 기존 차트가 있으면 파괴
+                priceChartInstance.destroy();
+            }
             priceChartInstance = new Chart(priceChartCanvas, config);
         } else {
             console.error("priceChartCanvas is null, cannot create chart.");
         }
     }
     
-    // function updateFairValueLinesOnChart(fairValueResults) { /* Chart.js에서는 annotation으로 처리 */ }
-    // 이 함수는 Chart.js에서는 직접적으로 사용되지 않으므로 주석 처리하거나,
-    // 차트 업데이트 시 annotations 객체를 새로 만들고 chart.update()를 호출하는 방식으로 변경해야 합니다.
-    // 지금은 createOrUpdatePriceChart에서 annotations을 매번 새로 설정합니다.
-
-    function showLoading(isLoading) { /* ... 이전과 동일 ... */ }
-    function showError(message) { /* ... 이전과 동일 ... */ }
-    function hideError() { /* ... 이전과 동일 ... */ }
-    function showResults() { /* ... 이전과 동일 ... */ }
-    function hideResults() { /* ... 이전과 동일 ... */ }
+    function updateFairValueLinesOnChart(fairValueResults) {
+        if (!priceChartInstance || !priceChartInstance.options || !priceChartInstance.options.plugins || !priceChartInstance.options.plugins.annotation) {
+            // console.warn("Chart instance or annotation plugin not ready for updating lines.");
+            return;
+        }
+        const annotations = {};
+         if (fairValueResults.base > 0 && isFinite(fairValueResults.base)) {
+            annotations['fairValueBaseLine'] = {
+                type: 'line', yMin: fairValueResults.base, yMax: fairValueResults.base,
+                borderColor: 'rgba(0, 123, 255, 0.8)', borderWidth: 2,
+                label: { content: `기본: $${fairValueResults.base.toFixed(2)}`, enabled: true, position: 'end', backgroundColor: 'rgba(0, 123, 255, 0.8)', color: 'white', font: { weight: 'bold' } }
+            };
+        }
+        if (fairValueResults.low > 0 && isFinite(fairValueResults.low)) {
+            annotations['fairValueLowLine'] = {
+                type: 'line', yMin: fairValueResults.low, yMax: fairValueResults.low,
+                borderColor: 'rgba(255, 120, 117, 0.7)', borderWidth: 1, borderDash: [6, 6],
+                label: { content: `최저: $${fairValueResults.low.toFixed(2)}`, enabled: true, position: 'end', backgroundColor: 'rgba(255, 120, 117, 0.7)', color: 'white'}
+            };
+        }
+        if (fairValueResults.high > 0 && isFinite(fairValueResults.high)) {
+            annotations['fairValueHighLine'] = {
+                type: 'line', yMin: fairValueResults.high, yMax: fairValueResults.high,
+                borderColor: 'rgba(0, 180, 130, 0.7)', borderWidth: 1, borderDash: [6, 6],
+                label: { content: `최고: $${fairValueResults.high.toFixed(2)}`, enabled: true, position: 'end', backgroundColor: 'rgba(0, 180, 130, 0.7)', color: 'white'}
+            };
+        }
+        priceChartInstance.options.plugins.annotation.annotations = annotations;
+        priceChartInstance.update();
+    }
+    
+    function showLoading(isLoading) { if(loadingIndicator) loadingIndicator.style.display = isLoading ? 'block' : 'none'; }
+    function showError(message) { if(errorMessageDiv) {errorMessageDiv.textContent = message; errorMessageDiv.style.display = 'block';} }
+    function hideError() { if(errorMessageDiv) errorMessageDiv.style.display = 'none'; }
+    function showResults() { if(resultsArea) resultsArea.style.display = 'block'; }
+    function hideResults() { if(resultsArea) resultsArea.style.display = 'none'; }
 
 }; // window.onload 끝
