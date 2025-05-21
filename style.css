@@ -23,7 +23,7 @@ body {
 
 h1, h2, h3, h4 {
     color: #333;
-    margin-top: 1.2em; /* 제목 위 여백 추가 */
+    margin-top: 1.2em;
     margin-bottom: 0.8em;
 }
 h1 { text-align: center; margin-top: 0; }
@@ -43,7 +43,7 @@ h1 { text-align: center; margin-top: 0; }
 }
 
 #ticker-input {
-    width: calc(100% - 22px); /* padding 고려 */
+    width: calc(100% - 22px); 
     padding: 10px;
     border: 1px solid #ddd;
     border-radius: 4px;
@@ -74,7 +74,7 @@ h1 { text-align: center; margin-top: 0; }
     background-color: #e9e9e9;
 }
 
-.autocomplete-items div u { /* 자동완성 밑줄 스타일 */
+.autocomplete-items div u { 
     text-decoration: underline;
     font-weight: bold;
 }
@@ -97,7 +97,7 @@ h1 { text-align: center; margin-top: 0; }
     background-color: #4cae4c;
 }
 
-#recalculate-button { /* 재계산 버튼 스타일 */
+#recalculate-button { 
     margin-top:10px; 
     margin-bottom:20px; 
     width:100%; 
@@ -155,7 +155,7 @@ h1 { text-align: center; margin-top: 0; }
     color: #555;
     margin-right: 10px;
     text-align: right;
-    flex-shrink: 0; /* 레이블 너비 고정 */
+    flex-shrink: 0;
 }
 
 .bar {
@@ -167,8 +167,8 @@ h1 { text-align: center; margin-top: 0; }
     border-radius: 3px;
     transition: width 0.5s ease-in-out;
     position: relative;
-    min-width: 30px; /* 값이 매우 작을 때도 보이도록 */
-    box-sizing: border-box; /* 패딩이 너비에 포함되도록 */
+    min-width: 30px;
+    box-sizing: border-box;
 }
 .bar-value {
     position: absolute;
@@ -181,7 +181,7 @@ h1 { text-align: center; margin-top: 0; }
 
 .model-details, #api-data-list {
     margin-bottom: 20px;
-    padding: 15px; /* 패딩 일관성 */
+    padding: 15px;
     background-color: #f9f9f9;
     border: 1px solid #eee;
     border-radius: 4px;
@@ -207,8 +207,8 @@ h1 { text-align: center; margin-top: 0; }
     margin-top: 0;
 }
 .model-item ul li {
-    margin-bottom: 5px; /* 간격 약간 조정 */
-    line-height: 1.8; /* 입력 필드와 텍스트 줄 간격 */
+    margin-bottom: 5px;
+    line-height: 1.8;
 }
 .assumption-input {
     width: 50px;
@@ -217,14 +217,14 @@ h1 { text-align: center; margin-top: 0; }
     text-align: right;
     border: 1px solid #ccc;
     border-radius: 3px;
-    font-size: 0.9em; /* 레이블과 크기 맞춤 */
+    font-size: 0.9em;
 }
 .assumption-small {
     width: 40px;
 }
 
 
-#api-data-list li { /* assumptions-list에서 ID 변경됨 */
+#api-data-list li {
     margin-bottom: 8px;
     font-size: 0.9em;
 }
@@ -248,7 +248,7 @@ h1 { text-align: center; margin-top: 0; }
     }
     h1 { font-size: 1.5em; }
     .bar-label { width: 70px; margin-right: 5px; }
-    .model-item ul li { line-height: 2; } /* 모바일에서 입력 필드 줄 간격 더 확보 */
+    .model-item ul li { line-height: 2; }
     .assumption-input { width: 45px; }
     .assumption-small { width: 35px; }
 }
