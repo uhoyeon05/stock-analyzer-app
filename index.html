@@ -11,7 +11,7 @@
         <h1>간단 적정주가 분석기</h1>
 
         <div class="input-area">
-            <label for="ticker-input">종목 티커 입력 (예: 005930.KS 삼성전자):</label>
+            <label for="ticker-input">종목 티커 입력 (예: AAPL Apple Inc.):</label>
             <div class="autocomplete-container">
                 <input type="text" id="ticker-input" placeholder="티커 또는 회사명 입력...">
                 <div id="autocomplete-list" class="autocomplete-items"></div>
@@ -24,7 +24,7 @@
 
         <div id="results-area" style="display: none;">
             <h2 id="stock-name-title"></h2>
-            <p><strong>현재(전일 종가):</strong> <span id="current-price"></span>원</p>
+            <p><strong>현재(전일 종가):</strong> $<span id="current-price"></span></p>
             <p><strong>기준일:</strong> <span id="data-date">API 제공 기준</span></p>
 
             <h3>산출된 적정주가 범위</h3>
@@ -49,11 +49,36 @@
                 </div>
             </div>
 
+            <h4>평가 모델별 분석 근거</h4>
+            <div id="model-details-area" class="model-details">
+                <div class="model-item">
+                    <strong>PER 모델:</strong>
+                    <ul>
+                        <li>목표 PER (낮음/기본/높음): <span id="target-per-range"></span></li>
+                        <li>산출 주가 (낮음/기본/높음): <span id="per-value-range"></span></li>
+                    </ul>
+                </div>
+                <div class="model-item">
+                    <strong>PBR 모델:</strong>
+                    <ul>
+                        <li>목표 PBR (낮음/기본/높음): <span id="target-pbr-range"></span></li>
+                        <li>산출 주가 (낮음/기본/높음): <span id="pbr-value-range"></span></li>
+                    </ul>
+                </div>
+                <div class="model-item">
+                    <strong id="intrinsic-model-name">내재가치 모델:</strong>
+                    <ul>
+                        <li>주요 가정: 요구수익률(Ke) <span id="intrinsic-ke"></span>%, 성장률(g) <span id="intrinsic-g"></span>%</li>
+                        <li>산출 주가 (낮음/기본/높음): <span id="intrinsic-value-range"></span></li>
+                    </ul>
+                </div>
+            </div>
+
             <h4>주요 데이터 및 가정</h4>
             <ul id="assumptions-list">
-                <li>EPS (TTM): <span id="data-eps"></span>원</li>
-                <li>BPS (TTM): <span id="data-bps"></span>원</li>
-                <li>DPS (연간 TTM): <span id="data-dps"></span>원</li>
+                <li>EPS (TTM): <span id="data-eps"></span></li>
+                <li>BPS (TTM): <span id="data-bps"></span></li>
+                <li>DPS (연간 TTM): <span id="data-dps"></span></li>
                 <li>Beta: <span id="data-beta"></span></li>
                 <li>ROE (TTM): <span id="data-roe"></span>%</li>
                 <li>무위험수익률(Rf): <span id="data-rf"></span>% (가정치)</li>
