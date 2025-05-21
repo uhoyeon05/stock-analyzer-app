@@ -13,14 +13,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const currentPriceSpan = document.getElementById('current-price');
     const dataDateSpan = document.getElementById('data-date');
 
+    // 주가 차트 컨테이너
     const priceChartContainer = document.getElementById('price-chart-container');
-    let priceChart = null;
+    let priceChart = null; 
     let candlestickSeries = null;
     let volumeSeries = null;
-    let fairValueLines = [];
+    let fairValueLines = []; 
 
     const fairValueSummaryP = document.getElementById('fair-value-summary');
 
+
+    // 모델별 상세 정보 표시 span
     const modelEpsPerSpan = document.getElementById('model-eps-per');
     const perValueRangeSpan = document.getElementById('per-value-range');
     const modelBpsPbrSpan = document.getElementById('model-bps-pbr');
@@ -30,6 +33,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const intrinsicValueRangeSpan = document.getElementById('intrinsic-value-range');
     const intrinsicModelDescriptionDiv = document.getElementById('intrinsic-model-description');
 
+
+    // 사용자 입력 필드
     const inputPerLow = document.getElementById('input-per-low');
     const inputPerBase = document.getElementById('input-per-base');
     const inputPerHigh = document.getElementById('input-per-high');
@@ -42,6 +47,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const inputG = document.getElementById('input-g');
     const dataBetaDisplaySpan = document.getElementById('data-beta-display');
 
+
+    // API 제공 데이터 표시 span (주요 지표 현황 섹션용)
     const apiEpsSpan = document.getElementById('api-eps');
     const apiBpsSpan = document.getElementById('api-bps');
     const apiDpsSpan = document.getElementById('api-dps');
@@ -52,27 +59,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const apiBetaSpan = document.getElementById('api-beta');
     const apiPayoutRatioSpan = document.getElementById('api-payout-ratio');
 
-    let tickerDataStore = [];
-    let currentStockData = null;
 
-    // --- 1. 티커 목록 로드 ---
+    let tickerDataStore = [];
+    let currentStockData = null; 
+
+    // --- 1. 티커 목록 로드 (자동 완성용) ---
     async function loadTickerData() {
         try {
-            const response = await fetch('tickers.json');
+            const response = await fetch('tickers.json'); 
             if (!response.ok) throw new Error(`Ticker list fetch failed: ${response.status}`);
             tickerDataStore = await response.json();
         } catch (error) {
             console.error("Error loading ticker data:", error);
         }
     }
-    // loadTickerData를 호출하여 티커 데이터를 미리 로드합니다.
-    // 이 함수가 완료된 후에 이벤트 리스너를 등록하는 것이 더 안전할 수 있지만,
-    // 현재 구조에서는 DOMContentLoaded 후에 바로 호출해도 큰 문제는 없습니다.
     loadTickerData();
 
-
     // --- 2. 자동 완성 로직 ---
-    if (tickerInput && autocompleteList) { // 요소가 존재하는지 확인 후 이벤트 리스너 등록
+    if (tickerInput && autocompleteList) { 
         tickerInput.addEventListener('input', function(e) {
             const val = this.value;
             autocompleteList.innerHTML = ''; 
@@ -115,9 +119,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     document.addEventListener('click', (e) => closeAllLists(e.target));
 
-
     // --- 3. "분석하기" 버튼 ---
-    if (analyzeButton) { // 요소가 존재하는지 확인
+    if (analyzeButton) { 
         analyzeButton.addEventListener('click', async () => {
             const ticker = tickerInput.value.trim().toUpperCase();
             if (!ticker) { showError('티커를 입력해주세요.'); return; }
@@ -147,13 +150,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- 4. "재계산" 버튼 ---
-    if (recalculateButton) { // 요소가 존재하는지 확인
+    if (recalculateButton) { 
         recalculateButton.addEventListener('click', () => {
             if (!currentStockData) { showError('먼저 주식을 분석해주세요.'); return; }
             hideError();
             const userAssumptions = getUserAssumptions();
             const fairValuesResult = calculateFairValues(currentStockData, userAssumptions);
-            updateFairValueLinesOnChart(fairValuesResult.final); // 주가 차트의 선 업데이트
+            updateFairValueLinesOnChart(fairValuesResult.final); 
             updateModelDetailsDisplays(currentStockData, userAssumptions, fairValuesResult.modelOutputs);
         });
     } else {
@@ -161,9 +164,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- 5. 가정치 입력 필드 변경 시 Ke 자동 업데이트 ---
-    if (inputRf && inputErp) { // 요소 존재 확인
+    if (inputRf && inputErp) { 
         [inputRf, inputErp].forEach(input => {
-            if (input) { // 각 input 요소도 존재하는지 확인
+            if (input) { 
                 input.addEventListener('change', () => {
                     let betaToUse = 1.0;
                     if (currentStockData && currentStockData.beta !== undefined && currentStockData.beta !== null) {
@@ -177,7 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- 6. 함수 정의 ---
     function updateKeInput(betaValue) {
-        if (!inputRf || !inputErp || !inputKe) return; // 필요한 입력 필드가 없으면 중단
+        if (!inputRf || !inputErp || !inputKe) return; 
         const rf = parseFloat(inputRf.value) || 0;
         const erp = parseFloat(inputErp.value) || 0;
         const beta = (betaValue !== undefined && betaValue !== null) ? parseFloat(betaValue) : 1.0;
@@ -208,7 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateKeInput(apiData.beta);
 
         let initialG;
-        const keForGCalc = parseFloat(inputKe.value) / 100;
+        const keForGCalc = inputKe ? (parseFloat(inputKe.value) / 100) : 0.08; // inputKe 존재 확인
         if (apiData.roeTTM && apiData.payoutRatioTTM !== undefined && apiData.payoutRatioTTM >= 0 && apiData.payoutRatioTTM <=1 && apiData.roeTTM > 0) {
             initialG = apiData.roeTTM * (1 - apiData.payoutRatioTTM);
         } else if (apiData.roeTTM && apiData.roeTTM > 0) {
@@ -231,8 +234,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getUserAssumptions() {
-        const keValue = inputKe ? parseFloat(inputKe.value) : NaN; // null 체크
-        const gValue = inputG ? parseFloat(inputG.value) : NaN; // null 체크
+        const keValue = inputKe ? parseFloat(inputKe.value) : NaN;
+        const gValue = inputG ? parseFloat(inputG.value) : NaN;
         return {
             perLow: inputPerLow ? parseFloat(inputPerLow.value) || 10 : 10,
             perBase: inputPerBase ? parseFloat(inputPerBase.value) || 15 : 15,
@@ -296,7 +299,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateModelDetailsDisplays(apiData, assumptions, modelOutputs) {
-        const { ke, g } = assumptions; // 이미 소수점으로 변환된 값 사용
+        const { ke, g } = assumptions;
 
         if(modelEpsPerSpan) modelEpsPerSpan.textContent = apiData.eps !== undefined ? `$${apiData.eps.toFixed(2)}` : 'N/A';
         if(perValueRangeSpan) perValueRangeSpan.textContent = `$${modelOutputs.PER.low.toFixed(2)} / $${modelOutputs.PER.base.toFixed(2)} / $${modelOutputs.PER.high.toFixed(2)}`;
@@ -323,34 +326,49 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function createOrUpdatePriceChart(historicalData, fairValueResults) {
-        if (!priceChartContainer) return;
+        if (!priceChartContainer) {
+            console.error("priceChartContainer가 없습니다.");
+            return;
+        }
         priceChartContainer.innerHTML = ''; 
 
         if (!historicalData || historicalData.length === 0) {
-            priceChartContainer.textContent = '주가 차트 데이터를 가져올 수 없습니다.';
+            if(priceChartContainer) priceChartContainer.textContent = '주가 차트 데이터를 가져올 수 없습니다.';
             return;
         }
 
-        // LightweightCharts 라이브러리가 로드되었는지 확인
         if (typeof LightweightCharts === 'undefined' || typeof LightweightCharts.createChart !== 'function') {
-            console.error('LightweightCharts.createChart 함수를 사용할 수 없습니다. 라이브러리가 올바르게 로드되었는지, HTML에 스크립트 태그가 있는지 확인하세요.');
-            priceChartContainer.textContent = '차트 생성 오류: 라이브러리 로드 실패. HTML의 <head>에 Lightweight Charts 스크립트 태그를 추가하세요.';
+            console.error('LightweightCharts.createChart 함수를 사용할 수 없습니다. HTML <head>에 라이브러리 <script> 태그가 있는지 확인하세요.');
+            if(priceChartContainer) priceChartContainer.textContent = '차트 생성 오류: 라이브러리 로드 실패.';
             return; 
         }
 
         try {
+            if (priceChartContainer.clientWidth <= 0 || priceChartContainer.clientHeight <= 0) {
+                console.warn("priceChartContainer의 크기가 유효하지 않아 차트를 생성할 수 없습니다. clientWidth:", priceChartContainer.clientWidth, "clientHeight:", priceChartContainer.clientHeight);
+                priceChartContainer.textContent = '차트 영역 크기가 유효하지 않습니다. CSS를 확인해주세요. (예: height: 400px)';
+                return;
+            }
+
             priceChart = LightweightCharts.createChart(priceChartContainer, {
-                width: priceChartContainer.clientWidth || 600, // 너비 기본값
-                height: priceChartContainer.clientHeight || 400, // 높이 기본값
+                width: priceChartContainer.clientWidth,
+                height: priceChartContainer.clientHeight, 
                 layout: { backgroundColor: '#ffffff', textColor: 'rgba(33, 56, 77, 1)' },
                 grid: { vertLines: { color: 'rgba(197, 203, 206, 0.2)' }, horzLines: { color: 'rgba(197, 203, 206, 0.2)' }},
                 crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
                 rightPriceScale: { borderColor: 'rgba(197, 203, 206, 0.8)' },
                 timeScale: { borderColor: 'rgba(197, 203, 206, 0.8)', timeVisible: true, secondsVisible: false },
             });
+
+            console.log("priceChart object:", priceChart); // priceChart 객체 로깅
+            if (priceChart) {
+                console.log("typeof priceChart.addCandlestickSeries:", typeof priceChart.addCandlestickSeries);
+                console.log("typeof priceChart.addHistogramSeries:", typeof priceChart.addHistogramSeries);
+            }
+
         } catch (e) {
             console.error("LightweightCharts.createChart 호출 중 오류:", e);
-            priceChartContainer.textContent = '차트 생성 중 오류가 발생했습니다. 콘솔을 확인해주세요.';
+            if(priceChartContainer) priceChartContainer.textContent = '차트 생성 중 오류가 발생했습니다. 콘솔을 확인해주세요.';
             return;
         }
 
@@ -360,37 +378,46 @@ document.addEventListener('DOMContentLoaded', () => {
                 borderDownColor: 'rgba(255, 82, 82, 1)', borderUpColor: 'rgba(0, 150, 136, 1)',
                 wickDownColor: 'rgba(255, 82, 82, 1)', wickUpColor: 'rgba(0, 150, 136, 1)',
             });
-            candlestickSeries.setData(historicalData.filter(d => d.open && d.high && d.low && d.close && d.time)); // 유효한 데이터만 필터링
+            // historicalData의 time 필드가 'YYYY-MM-DD' 형식인지 확인 필요
+            const validCandlestickData = historicalData.filter(d => d.time && d.open !== undefined && d.high !== undefined && d.low !== undefined && d.close !== undefined)
+                                                    .map(d => ({...d, time: d.time.split('T')[0]})); // 시간 부분 제거, 날짜만 사용
+            candlestickSeries.setData(validCandlestickData);
 
             if (typeof priceChart.addHistogramSeries === 'function') {
                 volumeSeries = priceChart.addHistogramSeries({
                     color: '#26a69a', priceFormat: { type: 'volume' },
-                    priceScaleId: 'volume_scale', // 별도 Y축 사용 (아래쪽에 표시)
-                    scaleMargins: { top: 0.7, bottom: 0 }, // 위쪽 70% 가격, 아래쪽 30% 볼륨
-                });
-                 // 볼륨 Y축을 오른쪽에 배치 (기본값은 왼쪽)
-                priceChart.priceScale('volume_scale').applyOptions({
+                    priceScaleId: 'volume', // 고유한 ID로 변경
                     scaleMargins: { top: 0.7, bottom: 0 },
                 });
+                 priceChart.priceScale('volume').applyOptions({ // 고유한 ID 사용
+                     scaleMargins: { top: 0.7, bottom: 0 },
+                 });
 
                 const volumeData = historicalData.filter(d => d.time && d.volume !== undefined).map(d => ({ 
-                    time: d.time, 
+                    time: d.time.split('T')[0], 
                     value: d.volume, 
                     color: d.close > d.open ? 'rgba(0, 150, 136, 0.4)' : 'rgba(255, 82, 82, 0.4)' 
                 }));
                 volumeSeries.setData(volumeData);
-            } else { console.error("priceChart.addHistogramSeries is not a function"); }
+            } else { 
+                console.error("priceChart.addHistogramSeries is not a function");
+            }
             
             updateFairValueLinesOnChart(fairValueResults); 
-            priceChart.timeScale().fitContent(); 
+            if (priceChart.timeScale && typeof priceChart.timeScale === 'function' && priceChart.timeScale().fitContent) {
+                 priceChart.timeScale().fitContent(); 
+            }
         } else {
-            console.error("priceChart 객체 또는 addCandlestickSeries 메소드가 없습니다.");
+            console.error("priceChart 객체가 제대로 생성되지 않았거나, addCandlestickSeries 메소드가 없습니다. priceChart 값:", priceChart);
             if(priceChartContainer) priceChartContainer.textContent = '차트 시리즈 추가 중 오류 발생.';
         }
     }
     
     function updateFairValueLinesOnChart(fairValueResults) {
-        if (!candlestickSeries || !fairValueResults) return;
+        if (!candlestickSeries || !fairValueResults || typeof candlestickSeries.createPriceLine !== 'function') {
+            console.warn("Candlestick series or createPriceLine method not available for updating fair value lines.");
+            return;
+        }
         fairValueLines.forEach(line => candlestickSeries.removePriceLine(line));
         fairValueLines = [];
 
