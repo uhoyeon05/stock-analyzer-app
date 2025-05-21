@@ -1,0 +1,14 @@
+{
+  "name": "stock-analyzer-app",
+  "version": "1.0.0",
+  "description": "Simple stock fair value analyzer with FMP API and Netlify Functions",
+  "main": "index.html",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "node-fetch": "^2.6.7"
+  }
+}

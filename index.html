@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>간단 적정주가 분석</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>간단 적정주가 분석기</h1>
+
+        <div class="input-area">
+            <label for="ticker-input">종목 티커 입력 (예: 005930.KS 삼성전자):</label>
+            <div class="autocomplete-container">
+                <input type="text" id="ticker-input" placeholder="티커 또는 회사명 입력...">
+                <div id="autocomplete-list" class="autocomplete-items"></div>
+            </div>
+            <button id="analyze-button">분석하기</button>
+        </div>
+
+        <div id="loading-indicator" class="loading" style="display: none;">분석 중...</div>
+        <div id="error-message" class="error" style="display: none;"></div>
+
+        <div id="results-area" style="display: none;">
+            <h2 id="stock-name-title"></h2>
+            <p><strong>현재(전일 종가):</strong> <span id="current-price"></span>원</p>
+            <p><strong>기준일:</strong> <span id="data-date">API 제공 기준</span></p>
+
+            <h3>산출된 적정주가 범위</h3>
+            <div class="chart-container">
+                <div class="bar-wrapper">
+                    <div class="bar-label">최저 추정</div>
+                    <div class="bar" id="bar-low" style="width: 0%; background-color: #ff7675;">
+                        <span class="bar-value" id="value-low"></span>
+                    </div>
+                </div>
+                <div class="bar-wrapper">
+                    <div class="bar-label">기본 추정</div>
+                    <div class="bar" id="bar-base" style="width: 0%; background-color: #74b9ff;">
+                        <span class="bar-value" id="value-base"></span>
+                    </div>
+                </div>
+                <div class="bar-wrapper">
+                    <div class="bar-label">최고 추정</div>
+                    <div class="bar" id="bar-high" style="width: 0%; background-color: #55efc4;">
+                        <span class="bar-value" id="value-high"></span>
+                    </div>
+                </div>
+            </div>
+
+            <h4>주요 데이터 및 가정</h4>
+            <ul id="assumptions-list">
+                <li>EPS (TTM): <span id="data-eps"></span>원</li>
+                <li>BPS (TTM): <span id="data-bps"></span>원</li>
+                <li>DPS (연간 TTM): <span id="data-dps"></span>원</li>
+                <li>Beta: <span id="data-beta"></span></li>
+                <li>ROE (TTM): <span id="data-roe"></span>%</li>
+                <li>무위험수익률(Rf): <span id="data-rf"></span>% (가정치)</li>
+                <li>주식위험프리미엄(ERP): <span id="data-erp"></span>% (가정치)</li>
+                <li>요구수익률(Ke): <span id="data-ke"></span>% (계산치)</li>
+                <li>적용 성장률(g): <span id="data-g"></span>% (추정/가정치)</li>
+            </ul>
+             <p class="disclaimer">본 분석은 제한된 데이터와 일반적인 가정을 바탕으로 한 참고용이며, 투자 결정의 근거가 될 수 없습니다. 실제 투자 시에는 보다 상세한 분석과 전문가의 조언을 구하시기 바랍니다.</p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

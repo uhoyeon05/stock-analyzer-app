@@ -1,0 +1,8 @@
+[build]
+  functions = "netlify/functions" # 서버리스 함수가 위치한 디렉토리
+  publish = "." # 웹사이트의 루트 디렉토리 (index.html이 있는 곳)
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
