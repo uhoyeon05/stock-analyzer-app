@@ -1,7 +1,11 @@
 // script.js
 
+// Chart.js 관련 라이브러리가 로드되었는지 확인하고, 로드될 때까지 기다리는 함수
 function ensureChartJsIsReady(callback) {
-    if (typeof window.Chart !== 'undefined' && typeof window.moment !== 'undefined' && typeof Chart.register === 'function' && typeof window.ChartAnnotation === 'object') { // ChartAnnotation 플러그인도 확인
+    if (typeof window.Chart !== 'undefined' && 
+        typeof window.moment !== 'undefined' && 
+        typeof Chart.register === 'function' && // Chart.js v3+ 에서는 register를 사용
+        typeof window.ChartAnnotation !== 'undefined') { // ChartAnnotation 플러그인 객체 확인
         // console.log("Chart.js, Moment.js, and Annotation Plugin are ready.");
         callback();
     } else {
@@ -10,6 +14,7 @@ function ensureChartJsIsReady(callback) {
     }
 }
 
+// 모든 리소스(이미지, 스크립트 등)가 로드된 후 스크립트 실행
 window.onload = () => {
     // --- HTML 요소 가져오기 ---
     const tickerInput = document.getElementById('ticker-input');
@@ -204,8 +209,7 @@ window.onload = () => {
         if(inputRf) inputRf.value = 3.0; if(inputErp) inputErp.value = 5.0;
         updateKeInput(apiData.beta);
 
-        // ★★★ initialG 선언 및 계산 위치 수정 ★★★
-        let initialG; // 함수 상단 또는 사용 직전에 선언
+        let initialG;
         const keForGCalc = inputKe ? (parseFloat(inputKe.value) / 100) : 0.08;
         if (apiData.roeTTM && apiData.payoutRatioTTM !== undefined && apiData.payoutRatioTTM >= 0 && apiData.payoutRatioTTM <=1 && apiData.roeTTM > 0) {
             initialG = apiData.roeTTM * (1 - apiData.payoutRatioTTM);
@@ -216,7 +220,7 @@ window.onload = () => {
         }
         initialG = Math.min(initialG, keForGCalc * 0.85);
         initialG = Math.max(0.02, initialG);
-        if(inputG) inputG.value = (initialG * 100).toFixed(1); // 이제 initialG가 선언된 후 사용됨
+        if(inputG) inputG.value = (initialG * 100).toFixed(1);
 
         const userAssumptions = getUserAssumptions();
         const fairValuesResult = calculateFairValues(apiData, userAssumptions);
@@ -324,7 +328,7 @@ window.onload = () => {
     }
 
     function createOrUpdatePriceChart(historicalData, fairValueResults) {
-        const chartContainerEl = document.getElementById('price-chart-container');
+        const chartContainerEl = document.getElementById('price-chart-container'); 
         if (!chartContainerEl) {
             console.error("CRITICAL: #price-chart-container HTML 요소를 찾을 수 없습니다!");
             return;
@@ -336,10 +340,12 @@ window.onload = () => {
             return;
         }
 
+        // ensureChartJsIsReady 함수는 버튼 클릭 시점에 호출되므로, 여기서는 라이브러리가 준비되었다고 가정.
+        // 만약을 위해 한번 더 체크 (필수는 아님, ensureChartJsIsReady에서 이미 처리)
         if (typeof window.Chart === 'undefined' || typeof window.moment === 'undefined' || typeof Chart.register !== 'function' || typeof window.ChartAnnotation === 'undefined') {
-            console.error('CRITICAL: Chart.js, Moment.js, 또는 Annotation 플러그인이 제대로 로드되지 않았습니다.');
-            if (chartContainerEl) chartContainerEl.textContent = '차트 라이브러리 로드 오류 (Chart.js/Moment.js/Annotation).';
-            return;
+             console.error('createOrUpdatePriceChart: Chart.js 관련 라이브러리가 로드되지 않았습니다.');
+             if(chartContainerEl) chartContainerEl.textContent = '차트 라이브러리 문제 (createOrUpdate)';
+             return;
         }
         Chart.register(window.ChartAnnotation); // Annotation 플러그인 등록
 
@@ -364,7 +370,6 @@ window.onload = () => {
                 label: { content: `기본: $${fairValueResults.base.toFixed(2)}`, enabled: true, position: 'end', backgroundColor: 'rgba(0, 123, 255, 0.8)', color: 'white', font: { weight: 'bold' } }
             };
         }
-        // ... (최저, 최고 적정주가선 annotation 추가 로직 - 이전과 동일하게)
         if (fairValueResults.low > 0 && isFinite(fairValueResults.low)) {
             annotations['fairValueLowLine'] = {
                 type: 'line', yMin: fairValueResults.low, yMax: fairValueResults.low,
@@ -379,7 +384,6 @@ window.onload = () => {
                 label: { content: `최고: $${fairValueResults.high.toFixed(2)}`, enabled: true, position: 'end', backgroundColor: 'rgba(0, 180, 130, 0.7)', color: 'white'}
             };
         }
-
 
         const data = {
             labels: labels,
@@ -449,7 +453,7 @@ window.onload = () => {
         };
         
         if (priceChartCanvas) {
-            if (priceChartInstance) { // 기존 차트가 있으면 파괴
+            if (priceChartInstance) {
                 priceChartInstance.destroy();
             }
             priceChartInstance = new Chart(priceChartCanvas, config);
@@ -458,9 +462,8 @@ window.onload = () => {
         }
     }
     
-    function updateFairValueLinesOnChart(fairValueResults) {
+    function updateFairValueLinesOnChart(fairValueResults) { // Chart.js 용으로 수정됨
         if (!priceChartInstance || !priceChartInstance.options || !priceChartInstance.options.plugins || !priceChartInstance.options.plugins.annotation) {
-            // console.warn("Chart instance or annotation plugin not ready for updating lines.");
             return;
         }
         const annotations = {};
