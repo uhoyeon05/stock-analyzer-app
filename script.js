@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const stockNameTitle = document.getElementById('stock-name-title');
     const currentPriceSpan = document.getElementById('current-price');
-    // const dataDateSpan = document.getElementById('data-date');
+    const dataDateSpan = document.getElementById('data-date'); // index.html에 이 ID가 있는지 확인
 
     const barLow = document.getElementById('bar-low');
     const valueLow = document.getElementById('value-low');
@@ -83,13 +83,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 (itemSymbol && itemSymbol.includes(searchText))) && count < 7) {
                 
                 const suggestionDiv = document.createElement("DIV");
-
                 const escapedVal = val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 const regex = new RegExp(escapedVal, 'gi');
-                
                 const displayNameHTML = item.name.replace(regex, (match) => `<u>${match}</u>`);
                 const displaySymbolHTML = item.symbol.replace(regex, (match) => `<u>${match}</u>`);
-                
                 suggestionDiv.innerHTML = `<strong>${displayNameHTML}</strong> (${displaySymbolHTML})`;
                 
                 suggestionDiv.addEventListener('click', function(e) {
@@ -139,7 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             initializeAssumptionsAndDisplay(currentStockData);
         } catch (error) {
-            console.error("분석 오류:", error);
+            console.error("분석 오류:", error.message, error.stack); // 스택 트레이스 포함
             currentStockData = null;
             showError(`분석 중 오류 발생: ${error.message}`);
         } finally {
@@ -158,11 +155,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     [inputRf, inputErp].forEach(input => {
         input.addEventListener('change', () => {
-            if (currentStockData && currentStockData.beta !== undefined) {
-                updateKeInput(currentStockData.beta);
-            } else if (currentStockData === null && (inputRf.value || inputErp.value)) { 
-                 updateKeInput(1.0); // 기본 Beta 1.0으로 Ke 업데이트
+            let betaToUse = 1.0; // 기본 베타
+            if (currentStockData && currentStockData.beta !== undefined && currentStockData.beta !== null) {
+                betaToUse = currentStockData.beta;
             }
+            updateKeInput(betaToUse);
         });
     });
     
@@ -177,15 +174,17 @@ document.addEventListener('DOMContentLoaded', () => {
     function initializeAssumptionsAndDisplay(apiData) {
         stockNameTitle.textContent = `${apiData.companyName || apiData.symbol} (${apiData.symbol || 'N/A'})`;
         currentPriceSpan.textContent = apiData.price !== undefined ? apiData.price.toFixed(2) : 'N/A';
+        if(dataDateSpan) dataDateSpan.textContent = 'API 제공 기준'; // dataDateSpan이 존재할 때만 업데이트
 
         dataEpsSpan.textContent = apiData.eps !== undefined ? `$${apiData.eps.toFixed(2)}` : 'N/A';
         dataBpsSpan.textContent = apiData.bps !== undefined ? `$${apiData.bps.toFixed(2)}` : 'N/A';
         dataDpsSpan.textContent = apiData.dps !== undefined ? `$${apiData.dps.toFixed(2)}` : 'N/A';
         const betaForDisplay = (apiData.beta !== undefined && apiData.beta !== null) ? apiData.beta.toFixed(2) : '1.00 (기본값)';
         dataBetaSpan.textContent = betaForDisplay;
-        dataBetaDisplaySpan.textContent = betaForDisplay;
+        if(dataBetaDisplaySpan) dataBetaDisplaySpan.textContent = betaForDisplay; // dataBetaDisplaySpan이 존재할 때만
         dataRoeSpan.textContent = apiData.roe !== undefined ? (apiData.roe * 100).toFixed(2) : 'N/A';
-        dataPayoutRatioSpan.textContent = apiData.payoutRatio !== undefined ? (apiData.payoutRatio * 100).toFixed(2) : 'N/A';
+        if(dataPayoutRatioSpan) dataPayoutRatioSpan.textContent = apiData.payoutRatio !== undefined ? (apiData.payoutRatio * 100).toFixed(2) : 'N/A';
+
 
         inputPerLow.value = 20; inputPerBase.value = 25; inputPerHigh.value = 30;
         inputPbrLow.value = 3.0; inputPbrBase.value = 5.0; inputPbrHigh.value = 8.0;
@@ -230,10 +229,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function calculateAndDisplayFairValues(apiData, assumptions) {
         const { perLow, perBase, perHigh, pbrLow, pbrBase, pbrHigh, ke, g } = assumptions;
 
-        targetPerRangeSpan.textContent = `${perLow} / ${perBase} / ${perHigh}`;
-        targetPbrRangeSpan.textContent = `${pbrLow.toFixed(2)} / ${pbrBase.toFixed(2)} / ${pbrHigh.toFixed(2)}`;
-        intrinsicKeSpan.textContent = (ke * 100).toFixed(1);
-        intrinsicGSpan.textContent = (g * 100).toFixed(1);
+        if(targetPerRangeSpan) targetPerRangeSpan.textContent = `${perLow} / ${perBase} / ${perHigh}`;
+        if(targetPbrRangeSpan) targetPbrRangeSpan.textContent = `${pbrLow.toFixed(2)} / ${pbrBase.toFixed(2)} / ${pbrHigh.toFixed(2)}`;
+        if(intrinsicKeSpan) intrinsicKeSpan.textContent = (ke * 100).toFixed(1);
+        if(intrinsicGSpan) intrinsicGSpan.textContent = (g * 100).toFixed(1);
 
         let fairValues = [];
         let perValLow = 0, perValBase = 0, perValHigh = 0;
@@ -243,7 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
             perValHigh = apiData.eps * perHigh;
             fairValues.push({ model: 'PER', low: perValLow, base: perValBase, high: perValHigh });
         }
-        perValueRangeSpan.textContent = `$${perValLow.toFixed(2)} / $${perValBase.toFixed(2)} / $${perValHigh.toFixed(2)}`;
+        if(perValueRangeSpan) perValueRangeSpan.textContent = `$${perValLow.toFixed(2)} / $${perValBase.toFixed(2)} / $${perValHigh.toFixed(2)}`;
 
         let pbrValLow = 0, pbrValBase = 0, pbrValHigh = 0;
         if (apiData.bps !== undefined && apiData.bps > 0) {
@@ -252,7 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
             pbrValHigh = apiData.bps * pbrHigh;
             fairValues.push({ model: 'PBR', low: pbrValLow, base: pbrValBase, high: pbrValHigh });
         }
-        pbrValueRangeSpan.textContent = `$${pbrValLow.toFixed(2)} / $${pbrValBase.toFixed(2)} / $${pbrValHigh.toFixed(2)}`;
+        if(pbrValueRangeSpan) pbrValueRangeSpan.textContent = `$${pbrValLow.toFixed(2)} / $${pbrValBase.toFixed(2)} / $${pbrValHigh.toFixed(2)}`;
         
         let intrinsicValLow = 0, intrinsicValBase = 0, intrinsicValHigh = 0;
         let modelName = "내재가치 모델 (계산 불가)";
@@ -273,8 +272,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 intrinsicValLow = 0; intrinsicValHigh = 0; intrinsicValBase = 0;
             }
         }
-        intrinsicModelNameSpan.textContent = modelName + ":";
-        intrinsicValueRangeSpan.textContent = `$${intrinsicValLow.toFixed(2)} / $${intrinsicValBase.toFixed(2)} / $${intrinsicValHigh.toFixed(2)}`;
+        if(intrinsicModelNameSpan) intrinsicModelNameSpan.textContent = modelName + ":";
+        if(intrinsicValueRangeSpan) intrinsicValueRangeSpan.textContent = `$${intrinsicValLow.toFixed(2)} / $${intrinsicValBase.toFixed(2)} / $${intrinsicValHigh.toFixed(2)}`;
         
         let fvLowSum = 0, fvBaseSum = 0, fvHighSum = 0;
         let validModels = 0;
@@ -292,24 +291,24 @@ document.addEventListener('DOMContentLoaded', () => {
             finalFvHigh = fvHighSum / validModels;
         } else {
             showError("유효한 평가 모델 결과를 산출할 수 없습니다. 데이터가 부족하거나 적절하지 않습니다.");
-            valueLow.textContent = `$0.00`; barLow.style.width = '0%';
-            valueBase.textContent = `$0.00`; barBase.style.width = '0%';
-            valueHigh.textContent = `$0.00`; barHigh.style.width = '0%';
+            if(valueLow) valueLow.textContent = `$0.00`; if(barLow) barLow.style.width = '0%';
+            if(valueBase) valueBase.textContent = `$0.00`; if(barBase) barBase.style.width = '0%';
+            if(valueHigh) valueHigh.textContent = `$0.00`; if(barHigh) barHigh.style.width = '0%';
             return;
         }
         
         const chartMaxVal = Math.max(apiData.price || 0, finalFvHigh, 0) * 1.1;
-        valueLow.textContent = `$${finalFvLow.toFixed(2)}`;
-        barLow.style.width = chartMaxVal > 0 ? `${(Math.max(0, finalFvLow) / chartMaxVal) * 100}%` : '0%';
-        valueBase.textContent = `$${finalFvBase.toFixed(2)}`;
-        barBase.style.width = chartMaxVal > 0 ? `${(Math.max(0, finalFvBase) / chartMaxVal) * 100}%` : '0%';
-        valueHigh.textContent = `$${finalFvHigh.toFixed(2)}`;
-        barHigh.style.width = chartMaxVal > 0 ? `${(Math.max(0, finalFvHigh) / chartMaxVal) * 100}%` : '0%';
+        if(valueLow) valueLow.textContent = `$${finalFvLow.toFixed(2)}`;
+        if(barLow) barLow.style.width = chartMaxVal > 0 ? `${(Math.max(0, finalFvLow) / chartMaxVal) * 100}%` : '0%';
+        if(valueBase) valueBase.textContent = `$${finalFvBase.toFixed(2)}`;
+        if(barBase) barBase.style.width = chartMaxVal > 0 ? `${(Math.max(0, finalFvBase) / chartMaxVal) * 100}%` : '0%';
+        if(valueHigh) valueHigh.textContent = `$${finalFvHigh.toFixed(2)}`;
+        if(barHigh) barHigh.style.width = chartMaxVal > 0 ? `${(Math.max(0, finalFvHigh) / chartMaxVal) * 100}%` : '0%';
     }
 
-    function showLoading(isLoading) { loadingIndicator.style.display = isLoading ? 'block' : 'none'; }
-    function showError(message) { errorMessageDiv.textContent = message; errorMessageDiv.style.display = 'block'; }
-    function hideError() { errorMessageDiv.style.display = 'none'; }
-    function showResults() { resultsArea.style.display = 'block'; }
-    function hideResults() { resultsArea.style.display = 'none'; }
+    function showLoading(isLoading) { if(loadingIndicator) loadingIndicator.style.display = isLoading ? 'block' : 'none'; }
+    function showError(message) { if(errorMessageDiv) {errorMessageDiv.textContent = message; errorMessageDiv.style.display = 'block';} }
+    function hideError() { if(errorMessageDiv) errorMessageDiv.style.display = 'none'; }
+    function showResults() { if(resultsArea) resultsArea.style.display = 'block'; }
+    function hideResults() { if(resultsArea) resultsArea.style.display = 'none'; }
 });
