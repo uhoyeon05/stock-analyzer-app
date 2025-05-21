@@ -7,9 +7,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultsArea = document.getElementById('results-area');
     const autocompleteList = document.getElementById('autocomplete-list');
 
+    // ... (다른 HTML 요소 ID 가져오는 부분은 이전과 동일) ...
     const stockNameTitle = document.getElementById('stock-name-title');
     const currentPriceSpan = document.getElementById('current-price');
-    // const dataDateSpan = document.getElementById('data-date');
 
     const barLow = document.getElementById('bar-low');
     const valueLow = document.getElementById('value-low');
@@ -69,22 +69,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (((itemName && itemName.includes(searchText)) ||
                 (itemSymbol && itemSymbol.includes(searchText))) && count < 7) {
-                const b = document.createElement("DIV");
                 
-                const escapedVal = val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const regex = new RegExp(escapedVal, 'gi');
+                const suggestionDiv = document.createElement("DIV"); // 새 DIV 생성
+
+                // 회사명 부분 (입력값 하이라이트)
+                const nameStrong = document.createElement("STRONG");
+                const escapedValName = val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regexName = new RegExp(escapedValName, 'gi');
+                const nameParts = item.name.split(regexName); // 입력값을 기준으로 문자열 분리
+                nameParts.forEach((part, index) => {
+                    if (part) nameStrong.appendChild(document.createTextNode(part));
+                    if (index < nameParts.length - 1) { // 마지막 부분이 아니면
+                        const u = document.createElement("U");
+                        // 원본 문자열에서 실제 매칭된 부분을 가져와야 대소문자 유지됨
+                        const matchedOriginal = item.name.substring(nameStrong.textContent.length, nameStrong.textContent.length + val.length);
+                        u.textContent = matchedOriginal;
+                        nameStrong.appendChild(u);
+                    }
+                });
+                suggestionDiv.appendChild(nameStrong);
+
+                // 티커 심볼 부분 (입력값 하이라이트)
+                const symbolTextNode = document.createTextNode(` (${item.symbol.substring(0, item.symbol.search(regexName) === -1 ? item.symbol.length : item.symbol.search(regexName))}`); // 괄호와 하이라이트 전 부분
+                suggestionDiv.appendChild(symbolTextNode);
                 
-                const displayName = item.name.replace(regex, (match) => `<u>${match}</u>`);
-                const displaySymbol = item.symbol.replace(regex, (match) => `<u>${match}</u>`);
-                
-                // 여기가 대략 91번째 줄 근처일 수 있습니다. 문자열 조합을 더 안전하게 변경.
-                b.innerHTML = '<strong>' + displayName + '</strong>' + ' (' + displaySymbol + ')';
-                
-                b.addEventListener('click', function(e) {
+                if(item.symbol.search(regexName) !== -1){ // 일치하는 부분이 있다면
+                    const symbolU = document.createElement("U");
+                    const matchedSymbolOriginal = item.symbol.substring(item.symbol.search(regexName), item.symbol.search(regexName) + val.length);
+                    symbolU.textContent = matchedSymbolOriginal;
+                    suggestionDiv.appendChild(symbolU);
+                    const symbolTextNodeAfter = document.createTextNode(item.symbol.substring(item.symbol.search(regexName) + val.length) + ')');
+                    suggestionDiv.appendChild(symbolTextNodeAfter);
+                } else { // 일치하는 부분 없으면 나머지 심볼과 닫는 괄호
+                     const symbolTextNodeRest = document.createTextNode(item.symbol.substring(suggestionDiv.textContent.length -1 - nameStrong.textContent.length) + ')'); // 이미 추가된 ( 제외하고
+                     suggestionDiv.appendChild(symbolTextNodeRest);
+                }
+
+
+                suggestionDiv.addEventListener('click', function(e) {
                     tickerInput.value = item.symbol;
                     closeAllLists();
                 });
-                autocompleteList.appendChild(b);
+                autocompleteList.appendChild(suggestionDiv);
                 count++;
             }
         });
@@ -105,7 +131,8 @@ document.addEventListener('DOMContentLoaded', () => {
         closeAllLists(e.target);
     });
 
-
+    // --- analyzeButton 클릭 이벤트 및 displayResults 함수 등 나머지 코드는 이전과 동일 ---
+    // (이하 생략 - 이전 답변의 나머지 부분을 여기에 붙여넣으시면 됩니다)
     analyzeButton.addEventListener('click', async () => {
         const ticker = tickerInput.value.trim().toUpperCase();
         if (!ticker) {
