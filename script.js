@@ -3,15 +3,16 @@
 // ★★★★★ 중요: 이 함수는 DOMContentLoaded 바깥, 스크립트 최상단에 위치해야 합니다. ★★★★★
 function ensureChartLibraryIsReady(callback) {
     if (typeof window.LightweightCharts !== 'undefined' && typeof window.LightweightCharts.createChart === 'function') {
-        // console.log("LightweightCharts library is ready. (called from ensureChartLibraryIsReady)");
+        console.log("LightweightCharts library is ready.");
         callback(); // 라이브러리가 준비되었으면 콜백 실행
     } else {
-        console.warn("LightweightCharts library not ready yet, retrying in 100ms...");
-        setTimeout(() => ensureChartLibraryIsReady(callback), 100); // 0.1초 후 재시도
+        console.warn("LightweightCharts library not ready yet, retrying in 200ms...");
+        setTimeout(() => ensureChartLibraryIsReady(callback), 200); // 0.2초 후 재시도
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+// 모든 리소스(이미지, 스크립트 등)가 로드된 후 스크립트 실행
+window.onload = () => {
     // --- HTML 요소 가져오기 ---
     const tickerInput = document.getElementById('ticker-input');
     const analyzeButton = document.getElementById('analyze-button');
@@ -25,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const currentPriceSpan = document.getElementById('current-price');
     const dataDateSpan = document.getElementById('data-date');
 
-    const priceChartContainer = document.getElementById('price-chart-container');
+    // priceChartContainer는 createOrUpdatePriceChart 함수 내에서 직접 참조
     let priceChart = null;
     let candlestickSeries = null;
     let volumeSeries = null;
@@ -122,8 +123,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('click', (e) => closeAllLists(e.target));
 
     if (analyzeButton) {
-        analyzeButton.addEventListener('click', () => { // async를 콜백 안으로 이동
-            ensureChartLibraryIsReady(async () => { // async 콜백으로 변경
+        analyzeButton.addEventListener('click', () => {
+            ensureChartLibraryIsReady(async () => {
                 const ticker = tickerInput.value.trim().toUpperCase();
                 if (!ticker) { showError('티커를 입력해주세요.'); return; }
                 showLoading(true); hideError(); hideResults();
@@ -148,13 +149,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         });
-    } else {
-        console.error("Analyze button not found.");
-    }
+    } else { console.error("Analyze button not found."); }
 
     if (recalculateButton) {
         recalculateButton.addEventListener('click', () => {
-            ensureChartLibraryIsReady(() => { // 콜백으로 재계산 로직 실행
+            ensureChartLibraryIsReady(() => {
                 if (!currentStockData) { showError('먼저 주식을 분석해주세요.'); return; }
                 hideError();
                 const userAssumptions = getUserAssumptions();
@@ -163,26 +162,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateModelDetailsDisplays(currentStockData, userAssumptions, fairValuesResult.modelOutputs);
             });
         });
-    } else {
-        console.error("Recalculate button not found.");
-    }
+    } else { console.error("Recalculate button not found."); }
 
     if (inputRf && inputErp) {
-        [inputRf, inputErp].forEach(input => {
-            if (input) {
-                input.addEventListener('change', () => {
-                    let betaToUse = 1.0;
-                    if (currentStockData && currentStockData.beta !== undefined && currentStockData.beta !== null) {
-                        betaToUse = currentStockData.beta;
-                    }
-                    updateKeInput(betaToUse);
-                });
-            }
-        });
+      [inputRf, inputErp].forEach(input => {
+          if (input) {
+              input.addEventListener('change', () => {
+                  let betaToUse = 1.0;
+                  if (currentStockData && currentStockData.beta !== undefined && currentStockData.beta !== null) {
+                      betaToUse = currentStockData.beta;
+                  }
+                  updateKeInput(betaToUse);
+              });
+          }
+      });
     }
     
-    function updateKeInput(betaValue) { 
-        if (!inputRf || !inputErp || !inputKe) return; 
+    function updateKeInput(betaValue) {
+        if (!inputRf || !inputErp || !inputKe) return;
         const rf = parseFloat(inputRf.value) || 0;
         const erp = parseFloat(inputErp.value) || 0;
         const beta = (betaValue !== undefined && betaValue !== null) ? parseFloat(betaValue) : 1.0;
@@ -190,7 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
         inputKe.value = calculatedKe.toFixed(1);
     }
     
-    function initializePageWithData(apiData) { 
+    function initializePageWithData(apiData) {
         if (stockNameTitle) stockNameTitle.textContent = `${apiData.companyName || apiData.symbol} (${apiData.symbol || 'N/A'})`;
         if (currentPriceSpan) currentPriceSpan.textContent = apiData.price !== undefined ? apiData.price.toFixed(2) : 'N/A';
         if (dataDateSpan) dataDateSpan.textContent = 'API 제공 기준';
@@ -213,15 +210,15 @@ document.addEventListener('DOMContentLoaded', () => {
         updateKeInput(apiData.beta);
 
         let initialG;
-        const keForGCalc = inputKe ? (parseFloat(inputKe.value) / 100) : 0.08; 
+        const keForGCalc = inputKe ? (parseFloat(inputKe.value) / 100) : 0.08;
         if (apiData.roeTTM && apiData.payoutRatioTTM !== undefined && apiData.payoutRatioTTM >= 0 && apiData.payoutRatioTTM <=1 && apiData.roeTTM > 0) {
             initialG = apiData.roeTTM * (1 - apiData.payoutRatioTTM);
         } else if (apiData.roeTTM && apiData.roeTTM > 0) {
-            initialG = apiData.roeTTM * 0.5; 
+            initialG = apiData.roeTTM * 0.5;
         } else {
             initialG = 0.05;
         }
-        initialG = Math.min(initialG, keForGCalc * 0.85); 
+        initialG = Math.min(initialG, keForGCalc * 0.85);
         initialG = Math.max(0.02, initialG);
         if(inputG) inputG.value = (initialG * 100).toFixed(1);
 
@@ -231,14 +228,14 @@ document.addEventListener('DOMContentLoaded', () => {
         updateModelDetailsDisplays(apiData, userAssumptions, fairValuesResult.modelOutputs);
         if(fairValueSummaryP) fairValueSummaryP.textContent = `산출된 모델들의 기본 추정치 평균은 $${fairValuesResult.final.base.toFixed(2)} 입니다.`;
         
-        showResults(); 
+        showResults();
 
-        requestAnimationFrame(() => { 
+        setTimeout(() => {
             createOrUpdatePriceChart(apiData.historicalData, fairValuesResult.final);
-        });
+        }, 100); 
     }
 
-    function getUserAssumptions() { 
+    function getUserAssumptions() {
         const keValue = inputKe ? parseFloat(inputKe.value) : NaN;
         const gValue = inputG ? parseFloat(inputG.value) : NaN;
         return {
@@ -253,7 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    function calculateFairValues(apiData, assumptions) { 
+    function calculateFairValues(apiData, assumptions) {
         const { perLow, perBase, perHigh, pbrLow, pbrBase, pbrHigh, ke, g } = assumptions;
         let modelOutputs = { PER: {low:0, base:0, high:0}, PBR: {low:0, base:0, high:0}, Intrinsic: {low:0, base:0, high:0, name: "내재가치 (계산 불가)", formula: ""} };
 
@@ -303,8 +300,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return { final: {low: finalFvLow, base: finalFvBase, high: finalFvHigh}, modelOutputs };
     }
 
-    function updateModelDetailsDisplays(apiData, assumptions, modelOutputs) { 
-        const { ke, g } = assumptions; 
+    function updateModelDetailsDisplays(apiData, assumptions, modelOutputs) {
+        const { ke, g } = assumptions;
 
         if(modelEpsPerSpan) modelEpsPerSpan.textContent = apiData.eps !== undefined ? `$${apiData.eps.toFixed(2)}` : 'N/A';
         if(perValueRangeSpan) perValueRangeSpan.textContent = `$${modelOutputs.PER.low.toFixed(2)} / $${modelOutputs.PER.base.toFixed(2)} / $${modelOutputs.PER.high.toFixed(2)}`;
@@ -331,56 +328,61 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function createOrUpdatePriceChart(historicalData, fairValueResults) {
-        if (!priceChartContainer) {
-            console.error("HTML에서 #price-chart-container 요소를 찾을 수 없습니다.");
+        const chartContainerEl = document.getElementById('price-chart-container');
+        if (!chartContainerEl) {
+            console.error("CRITICAL: #price-chart-container HTML 요소를 찾을 수 없습니다!");
             return;
         }
-        priceChartContainer.innerHTML = ''; 
+        chartContainerEl.innerHTML = '';
 
         if (!historicalData || historicalData.length === 0) {
-            if(priceChartContainer) priceChartContainer.textContent = '주가 차트 데이터를 가져올 수 없습니다.';
+            if (chartContainerEl) chartContainerEl.textContent = '주가 차트 데이터를 가져올 수 없습니다.';
             return;
         }
 
-        // ★★★★★ ensureChartLibraryIsReady 함수는 버튼 클릭 시 이미 호출되므로,
-        // createOrUpdatePriceChart 내부에서는 window.LightweightCharts가 존재한다고 가정하거나,
-        // 추가적인 방어 코드를 넣습니다. 여기서는 window.LightweightCharts를 직접 사용합니다.
+        // ensureChartLibraryIsReady는 버튼 클릭 시 이미 호출되므로, 여기서는 바로 사용 시도
         if (typeof window.LightweightCharts === 'undefined' || typeof window.LightweightCharts.createChart !== 'function') {
-             console.error('createOrUpdatePriceChart: LightweightCharts 라이브러리가 로드되지 않았습니다.');
-             if(priceChartContainer) priceChartContainer.textContent = '차트 라이브러리 문제 (createOrUpdate)';
-             return;
+            console.error('createOrUpdatePriceChart: LightweightCharts 라이브러리가 로드되지 않았습니다.');
+            if (chartContainerEl) chartContainerEl.textContent = '차트 라이브러리 문제 (createOrUpdate)';
+            return;
         }
 
-        const containerWidth = priceChartContainer.clientWidth;
-        const containerHeight = priceChartContainer.clientHeight;
+        const containerWidth = chartContainerEl.clientWidth;
+        const containerHeight = chartContainerEl.clientHeight;
+        console.log("Chart Container (re-fetched) Rect - Width:", containerWidth, "Height:", containerHeight);
 
         if (containerWidth <= 0 || containerHeight <= 0) {
-            console.warn("차트 컨테이너(#price-chart-container)의 크기가 유효하지 않습니다. CSS에서 height가 설정되었는지 확인하세요. clientWidth:", containerWidth, "clientHeight:", containerHeight);
-            if(priceChartContainer) priceChartContainer.textContent = '차트 영역 크기가 유효하지 않습니다. (CSS height 필요)';
+            console.warn("차트 컨테이너(#price-chart-container)의 크기가 유효하지 않습니다. CSS에서 height가 명시적으로 설정되었고, 부모 요소들이 화면에 보이는지 확인하세요.");
+            if (chartContainerEl) chartContainerEl.textContent = '차트 영역 크기 오류 (CSS height: 400px; 확인)';
             return;
         }
 
         try {
-            priceChart = window.LightweightCharts.createChart(priceChartContainer, {
+            priceChart = window.LightweightCharts.createChart(chartContainerEl, { // ★★★ chartContainerEl 사용 ★★★
                 width: containerWidth,
-                height: containerHeight, 
-                layout: { backgroundColor: '#ffffff', textColor: 'rgba(33, 56, 77, 1)' },
+                height: containerHeight,
+                layout: { 
+                    background: { type: 'solid', color: '#FFFFFF' }, // 배경색 명시 (오타 수정: backgroundColor -> background)
+                    textColor: 'rgba(33, 56, 77, 1)' 
+                },
+                // 더 많은 기본 옵션 추가 (이전 버전 참고)
                 grid: { vertLines: { color: 'rgba(197, 203, 206, 0.2)' }, horzLines: { color: 'rgba(197, 203, 206, 0.2)' }},
                 crosshair: { mode: window.LightweightCharts.CrosshairMode.Normal },
                 rightPriceScale: { borderColor: 'rgba(197, 203, 206, 0.8)' },
                 timeScale: { borderColor: 'rgba(197, 203, 206, 0.8)', timeVisible: true, secondsVisible: false },
             });
+            console.log("LightweightCharts.createChart() called. Result:", priceChart);
         } catch (e) {
-            console.error("LightweightCharts.createChart 호출 중 심각한 오류:", e);
-            if(priceChartContainer) priceChartContainer.textContent = '차트 생성 중 심각한 오류 발생. 콘솔 확인.';
-            priceChart = null; 
+            console.error("LightweightCharts.createChart 호출 중 예외 발생:", e);
+            if (chartContainerEl) chartContainerEl.textContent = '차트 생성 중 예외 발생. 콘솔 상세 확인.';
+            priceChart = null;
             return;
         }
 
         if (!priceChart || typeof priceChart.addCandlestickSeries !== 'function') {
-            console.error("priceChart 객체가 유효하지 않거나 addCandlestickSeries 메소드가 없습니다. createChart 결과:", priceChart);
-            if(priceChartContainer) priceChartContainer.textContent = '차트 시리즈 추가 중 오류 (객체 생성 실패).';
-            return; 
+            console.error("최종 확인: priceChart 객체가 유효하지 않거나 addCandlestickSeries 메소드가 없습니다. priceChart 값:", priceChart);
+            if (chartContainerEl) chartContainerEl.textContent = '차트 시리즈 추가 중 최종 오류 (객체 생성 실패).';
+            return;
         }
         
         candlestickSeries = priceChart.addCandlestickSeries({
@@ -388,43 +390,43 @@ document.addEventListener('DOMContentLoaded', () => {
             borderDownColor: 'rgba(255, 82, 82, 1)', borderUpColor: 'rgba(0, 150, 136, 1)',
             wickDownColor: 'rgba(255, 82, 82, 1)', wickUpColor: 'rgba(0, 150, 136, 1)',
         });
-        
         const validCandlestickData = historicalData
             .filter(d => d.time && typeof d.open === 'number' && typeof d.high === 'number' && typeof d.low === 'number' && typeof d.close === 'number')
-            .map(d => ({...d, time: d.time.split('T')[0]})); 
+            .map(d => ({...d, time: d.time.split('T')[0]}));
         candlestickSeries.setData(validCandlestickData);
 
         if (typeof priceChart.addHistogramSeries === 'function') {
             volumeSeries = priceChart.addHistogramSeries({
                 color: '#26a69a', priceFormat: { type: 'volume' },
-                priceScaleId: 'volume_axis', 
+                priceScaleId: 'volume_axis',
                 scaleMargins: { top: 0.70, bottom: 0 },
             });
             if (priceChart.priceScale && typeof priceChart.priceScale === 'function') {
-                priceChart.priceScale('volume_axis').applyOptions({ 
-                    scaleMargins: { top: 0.70, bottom: 0 },
-                });
+                try {
+                    priceChart.priceScale('volume_axis').applyOptions({
+                        scaleMargins: { top: 0.70, bottom: 0 },
+                    });
+                } catch (e) {
+                    console.warn("Failed to apply options to volume axis 'volume_axis':", e);
+                }
             }
-
             const volumeData = historicalData
                 .filter(d => d.time && typeof d.volume === 'number')
-                .map(d => ({ 
-                    time: d.time.split('T')[0], 
-                    value: d.volume, 
-                    color: d.close > d.open ? 'rgba(0, 150, 136, 0.4)' : 'rgba(255, 82, 82, 0.4)' 
+                .map(d => ({
+                    time: d.time.split('T')[0],
+                    value: d.volume,
+                    color: d.close > d.open ? 'rgba(0, 150, 136, 0.4)' : 'rgba(255, 82, 82, 0.4)'
                 }));
             volumeSeries.setData(volumeData);
-        } else { 
-            console.error("priceChart.addHistogramSeries is not a function");
-        }
+        } else { console.error("priceChart.addHistogramSeries is not a function"); }
         
-        updateFairValueLinesOnChart(fairValueResults); 
+        updateFairValueLinesOnChart(fairValueResults);
         if (priceChart.timeScale && typeof priceChart.timeScale === 'function' && typeof priceChart.timeScale().fitContent === 'function') {
-             priceChart.timeScale().fitContent(); 
+             priceChart.timeScale().fitContent();
         }
     }
     
-    function updateFairValueLinesOnChart(fairValueResults) { 
+    function updateFairValueLinesOnChart(fairValueResults) {
         if (!candlestickSeries || !fairValueResults || typeof candlestickSeries.createPriceLine !== 'function') {
             console.warn("Candlestick series or createPriceLine method not available for updating fair value lines.");
             return;
@@ -432,7 +434,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fairValueLines.forEach(line => candlestickSeries.removePriceLine(line));
         fairValueLines = [];
 
-        const LineStyle = (typeof window.LightweightCharts !== 'undefined' && window.LightweightCharts.LineStyle) ? window.LightweightCharts.LineStyle : { Solid: 0, Dashed: 2 }; 
+        const LineStyle = (typeof window.LightweightCharts !== 'undefined' && window.LightweightCharts.LineStyle) ? window.LightweightCharts.LineStyle : { Solid: 0, Dashed: 2 };
 
         const lineOptions = (price, color, title, lineStyle = LineStyle.Solid) => ({
             price: price, color: color, lineWidth: 2, lineStyle: lineStyle,
@@ -456,4 +458,4 @@ document.addEventListener('DOMContentLoaded', () => {
     function showResults() { if(resultsArea) resultsArea.style.display = 'block'; }
     function hideResults() { if(resultsArea) resultsArea.style.display = 'none'; }
 
-}); // DOMContentLoaded 끝
+}; // window.onload 끝
