@@ -49,42 +49,57 @@
                 </div>
             </div>
 
-            <h4>평가 모델별 분석 근거</h4>
+            <h4>평가 모델별 분석 근거 및 사용자 설정</h4>
             <div id="model-details-area" class="model-details">
                 <div class="model-item">
                     <strong>PER 모델:</strong>
                     <ul>
-                        <li>목표 PER (낮음/기본/높음): <span id="target-per-range"></span></li>
+                        <li>목표 PER (낮음/기본/높음):
+                            <input type="number" step="0.1" id="input-per-low" class="assumption-input"> /
+                            <input type="number" step="0.1" id="input-per-base" class="assumption-input"> /
+                            <input type="number" step="0.1" id="input-per-high" class="assumption-input">
+                        </li>
                         <li>산출 주가 (낮음/기본/높음): <span id="per-value-range"></span></li>
                     </ul>
                 </div>
                 <div class="model-item">
                     <strong>PBR 모델:</strong>
                     <ul>
-                        <li>목표 PBR (낮음/기본/높음): <span id="target-pbr-range"></span></li>
+                        <li>목표 PBR (낮음/기본/높음):
+                            <input type="number" step="0.01" id="input-pbr-low" class="assumption-input"> /
+                            <input type="number" step="0.01" id="input-pbr-base" class="assumption-input"> /
+                            <input type="number" step="0.01" id="input-pbr-high" class="assumption-input">
+                        </li>
                         <li>산출 주가 (낮음/기본/높음): <span id="pbr-value-range"></span></li>
                     </ul>
                 </div>
                 <div class="model-item">
                     <strong id="intrinsic-model-name">내재가치 모델:</strong>
                     <ul>
-                        <li>주요 가정: 요구수익률(Ke) <span id="intrinsic-ke"></span>%, 성장률(g) <span id="intrinsic-g"></span>%</li>
+                        <li>
+                            요구수익률(Ke): <input type="number" step="0.1" id="input-ke" class="assumption-input" title="무위험수익률(Rf) + Beta * 주식위험프리미엄(ERP) 로 계산됨. 직접 수정 가능.">%
+                            (Rf: <input type="number" step="0.1" id="input-rf" class="assumption-input assumption-small" value="3.0">% +
+                             Beta (<span id="data-beta-display">N/A</span>) *
+                             ERP: <input type="number" step="0.1" id="input-erp" class="assumption-input assumption-small" value="5.0">%)
+                        </li>
+                        <li>
+                            적용 성장률(g): <input type="number" step="0.1" id="input-g" class="assumption-input">%
+                        </li>
                         <li>산출 주가 (낮음/기본/높음): <span id="intrinsic-value-range"></span></li>
                     </ul>
                 </div>
             </div>
 
-            <h4>주요 데이터 및 가정</h4>
-            <ul id="assumptions-list">
+            <button id="recalculate-button" style="margin-top:10px; margin-bottom:20px; width:100%; padding:10px; background-color:#007bff; color:white; border:none; border-radius:4px; cursor:pointer;">입력값으로 재계산</button>
+
+            <h4>주요 데이터 (API 제공값)</h4>
+            <ul id="api-data-list">
                 <li>EPS (TTM): <span id="data-eps"></span></li>
                 <li>BPS (TTM): <span id="data-bps"></span></li>
                 <li>DPS (연간 TTM): <span id="data-dps"></span></li>
                 <li>Beta: <span id="data-beta"></span></li>
                 <li>ROE (TTM): <span id="data-roe"></span>%</li>
-                <li>무위험수익률(Rf): <span id="data-rf"></span>% (가정치)</li>
-                <li>주식위험프리미엄(ERP): <span id="data-erp"></span>% (가정치)</li>
-                <li>요구수익률(Ke): <span id="data-ke"></span>% (계산치)</li>
-                <li>적용 성장률(g): <span id="data-g"></span>% (추정/가정치)</li>
+                <li>배당성향 (TTM): <span id="data-payout-ratio"></span>%</li>
             </ul>
              <p class="disclaimer">본 분석은 제한된 데이터와 일반적인 가정을 바탕으로 한 참고용이며, 투자 결정의 근거가 될 수 없습니다. 실제 투자 시에는 보다 상세한 분석과 전문가의 조언을 구하시기 바랍니다.</p>
         </div>
