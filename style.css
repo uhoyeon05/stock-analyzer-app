@@ -1,4 +1,4 @@
-/* 5. style.css */
+/* style.css */
 body {
     font-family: Arial, sans-serif;
     line-height: 1.6;
@@ -8,7 +8,7 @@ body {
     color: #333;
     display: flex;
     justify-content: center;
-    align-items: flex-start; /* 상단 정렬 */
+    align-items: flex-start;
     min-height: 100vh;
 }
 
@@ -18,7 +18,7 @@ body {
     border-radius: 8px;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     width: 100%;
-    max-width: 600px; /* 최대 너비 설정 */
+    max-width: 600px;
 }
 
 h1, h2, h3, h4 {
@@ -42,7 +42,7 @@ h1 { text-align: center; }
 }
 
 #ticker-input {
-    width: calc(100% - 22px); /* padding 고려 */
+    width: calc(100% - 22px);
     padding: 10px;
     border: 1px solid #ddd;
     border-radius: 4px;
@@ -132,7 +132,7 @@ h1 { text-align: center; }
 }
 
 .bar-label {
-    width: 80px; /* 레이블 너비 고정 */
+    width: 80px;
     font-size: 0.9em;
     color: #555;
     margin-right: 10px;
@@ -141,31 +141,62 @@ h1 { text-align: center; }
 
 .bar {
     height: 25px;
-    line-height: 25px; /* 텍스트 수직 중앙 정렬 */
+    line-height: 25px;
     color: white;
     text-align: right;
-    padding-right: 5px; /* 바 안의 텍스트 여백 */
+    padding-right: 5px;
     border-radius: 3px;
     transition: width 0.5s ease-in-out;
-    position: relative; /* For value span positioning */
-    min-width: 30px; /* 값이 매우 작을 때도 보이도록 */
+    position: relative;
+    min-width: 30px;
 }
 .bar-value {
     position: absolute;
-    right: 5px; /* 바의 오른쪽에 값 표시 */
-    color: #fff; /* 값 텍스트 색상 */
+    right: 5px;
+    color: #fff;
     font-size: 0.9em;
     font-weight: bold;
-    text-shadow: 1px 1px 1px rgba(0,0,0,0.3); /* 가독성 향상 */
+    text-shadow: 1px 1px 1px rgba(0,0,0,0.3);
+}
+
+.model-details {
+    margin-bottom: 20px;
+    padding: 10px;
+    background-color: #f9f9f9;
+    border: 1px solid #eee;
+    border-radius: 4px;
+}
+.model-item {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed #ddd;
+}
+.model-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+.model-item strong {
+    display: block;
+    margin-bottom: 5px;
+}
+.model-item ul {
+    list-style-type: none;
+    padding-left: 15px;
+    font-size: 0.9em;
+    margin-top: 0;
+}
+.model-item ul li {
+    margin-bottom: 3px;
 }
 
 
 #assumptions-list {
     list-style-type: none;
     padding: 0;
-    background-color: #f9f9f9;
-    border: 1px solid #eee;
-    border-radius: 4px;
+    background-color: #f9f9f9; /* 동일한 배경색으로 통일감 */
+    border: 1px solid #eee; /* 동일한 테두리 */
+    border-radius: 4px; /* 동일한 둥근 모서리 */
     padding: 15px;
 }
 
@@ -173,7 +204,7 @@ h1 { text-align: center; }
     margin-bottom: 8px;
     font-size: 0.9em;
 }
-#assumptions-list li strong {
+#assumptions-list li strong { /* 이미 정의되어 있을 수 있으나 명시 */
     color: #333;
 }
 
@@ -195,4 +226,5 @@ h1 { text-align: center; }
         padding: 15px;
     }
     h1 { font-size: 1.5em; }
+    .bar-label { width: 70px; margin-right: 5px; }
 }
