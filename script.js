@@ -1,19 +1,14 @@
 // script.js
 
 // ★★★★★ 중요: 이 함수는 DOMContentLoaded 바깥, 스크립트 최상단에 위치해야 합니다. ★★★★★
-function checkChartLibraryIsReady() {
-    if (typeof window.LightweightCharts === 'undefined' || typeof window.LightweightCharts.createChart !== 'function') {
-        console.error('LightweightCharts 라이브러리가 전역 스코프에 로드되지 않았거나 createChart 함수를 찾을 수 없습니다.');
-        const errDiv = document.getElementById('error-message');
-        if (errDiv) { // DOM 요소가 로드되었을 수도 있고 아닐 수도 있으므로 null 체크
-            errDiv.textContent = '차트 라이브러리 로드 실패. 인터넷 연결을 확인하고 페이지를 새로고침 해보세요. HTML <head>의 라이브러리 <script> 태그를 확인하세요.';
-            errDiv.style.display = 'block';
-        }
-        return false;
+function ensureChartLibraryIsReady(callback) {
+    if (typeof window.LightweightCharts !== 'undefined' && typeof window.LightweightCharts.createChart === 'function') {
+        // console.log("LightweightCharts library is ready. (called from ensureChartLibraryIsReady)");
+        callback(); // 라이브러리가 준비되었으면 콜백 실행
+    } else {
+        console.warn("LightweightCharts library not ready yet, retrying in 100ms...");
+        setTimeout(() => ensureChartLibraryIsReady(callback), 100); // 0.1초 후 재시도
     }
-    // 라이브러리가 준비되었음을 명시적으로 한번만 알리기 위해, 또는 필요시마다 호출되도록 할 수 있음.
-    // console.log("LightweightCharts library is ready. (called from checkChartLibraryIsReady)");
-    return true;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -127,9 +122,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('click', (e) => closeAllLists(e.target));
 
     if (analyzeButton) {
-        analyzeButton.addEventListener('click', async () => {
-            // ensureChartLibraryIsReady의 콜백으로 분석 로직을 실행합니다.
-            ensureChartLibraryIsReady(async () => {
+        analyzeButton.addEventListener('click', () => { // async를 콜백 안으로 이동
+            ensureChartLibraryIsReady(async () => { // async 콜백으로 변경
                 const ticker = tickerInput.value.trim().toUpperCase();
                 if (!ticker) { showError('티커를 입력해주세요.'); return; }
                 showLoading(true); hideError(); hideResults();
@@ -160,8 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (recalculateButton) {
         recalculateButton.addEventListener('click', () => {
-            // ensureChartLibraryIsReady의 콜백으로 재계산 로직을 실행합니다.
-            ensureChartLibraryIsReady(() => {
+            ensureChartLibraryIsReady(() => { // 콜백으로 재계산 로직 실행
                 if (!currentStockData) { showError('먼저 주식을 분석해주세요.'); return; }
                 hideError();
                 const userAssumptions = getUserAssumptions();
@@ -245,7 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function getUserAssumptions() { /* ... 이전과 동일 ... */ 
+    function getUserAssumptions() { 
         const keValue = inputKe ? parseFloat(inputKe.value) : NaN;
         const gValue = inputG ? parseFloat(inputG.value) : NaN;
         return {
@@ -260,7 +253,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    function calculateFairValues(apiData, assumptions) { /* ... 이전과 동일 ... */ 
+    function calculateFairValues(apiData, assumptions) { 
         const { perLow, perBase, perHigh, pbrLow, pbrBase, pbrHigh, ke, g } = assumptions;
         let modelOutputs = { PER: {low:0, base:0, high:0}, PBR: {low:0, base:0, high:0}, Intrinsic: {low:0, base:0, high:0, name: "내재가치 (계산 불가)", formula: ""} };
 
@@ -310,7 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return { final: {low: finalFvLow, base: finalFvBase, high: finalFvHigh}, modelOutputs };
     }
 
-    function updateModelDetailsDisplays(apiData, assumptions, modelOutputs) { /* ... 이전과 동일 ... */ 
+    function updateModelDetailsDisplays(apiData, assumptions, modelOutputs) { 
         const { ke, g } = assumptions; 
 
         if(modelEpsPerSpan) modelEpsPerSpan.textContent = apiData.eps !== undefined ? `$${apiData.eps.toFixed(2)}` : 'N/A';
@@ -349,13 +342,14 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // ensureChartLibraryIsReady 함수는 이제 버튼 클릭 시점에 호출되므로, 여기서는 바로 사용 시도
+        // ★★★★★ ensureChartLibraryIsReady 함수는 버튼 클릭 시 이미 호출되므로,
+        // createOrUpdatePriceChart 내부에서는 window.LightweightCharts가 존재한다고 가정하거나,
+        // 추가적인 방어 코드를 넣습니다. 여기서는 window.LightweightCharts를 직접 사용합니다.
         if (typeof window.LightweightCharts === 'undefined' || typeof window.LightweightCharts.createChart !== 'function') {
-             console.error('createOrUpdatePriceChart: LightweightCharts 라이브러리가 로드되지 않았습니다. ensureChartLibraryIsReady 확인 필요.');
+             console.error('createOrUpdatePriceChart: LightweightCharts 라이브러리가 로드되지 않았습니다.');
              if(priceChartContainer) priceChartContainer.textContent = '차트 라이브러리 문제 (createOrUpdate)';
              return;
         }
-
 
         const containerWidth = priceChartContainer.clientWidth;
         const containerHeight = priceChartContainer.clientHeight;
@@ -383,13 +377,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (!priceChart || typeof priceChart.addCandlestickSeries !== 'function') { // 이 부분이 중요합니다.
+        if (!priceChart || typeof priceChart.addCandlestickSeries !== 'function') {
             console.error("priceChart 객체가 유효하지 않거나 addCandlestickSeries 메소드가 없습니다. createChart 결과:", priceChart);
             if(priceChartContainer) priceChartContainer.textContent = '차트 시리즈 추가 중 오류 (객체 생성 실패).';
-            return; // 여기서 중단됩니다.
+            return; 
         }
         
-        // 이후 코드는 priceChart가 유효하다고 가정하고 진행됩니다.
         candlestickSeries = priceChart.addCandlestickSeries({
             upColor: 'rgba(0, 150, 136, 0.8)', downColor: 'rgba(255, 82, 82, 0.8)',
             borderDownColor: 'rgba(255, 82, 82, 1)', borderUpColor: 'rgba(0, 150, 136, 1)',
@@ -431,7 +424,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    function updateFairValueLinesOnChart(fairValueResults) { /* ... 이전과 동일, LineStyle 부분 window.LightweightCharts 사용 확인 ... */ 
+    function updateFairValueLinesOnChart(fairValueResults) { 
         if (!candlestickSeries || !fairValueResults || typeof candlestickSeries.createPriceLine !== 'function') {
             console.warn("Candlestick series or createPriceLine method not available for updating fair value lines.");
             return;
