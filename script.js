@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const stockNameTitle = document.getElementById('stock-name-title');
     const currentPriceSpan = document.getElementById('current-price');
-    // const dataDateSpan = document.getElementById('data-date'); // 기준일은 FMP API에서 명시적으로 제공하지 않으므로 "API 제공 기준"으로 표시
+    // const dataDateSpan = document.getElementById('data-date');
 
     const barLow = document.getElementById('bar-low');
     const valueLow = document.getElementById('value-low');
@@ -18,7 +18,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const barHigh = document.getElementById('bar-high');
     const valueHigh = document.getElementById('value-high');
 
-    // 모델별 상세 정보 span
     const targetPerRangeSpan = document.getElementById('target-per-range');
     const perValueRangeSpan = document.getElementById('per-value-range');
     const targetPbrRangeSpan = document.getElementById('target-pbr-range');
@@ -28,7 +27,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const intrinsicGSpan = document.getElementById('intrinsic-g');
     const intrinsicValueRangeSpan = document.getElementById('intrinsic-value-range');
 
-    // 주요 데이터 및 가정 span
     const dataEpsSpan = document.getElementById('data-eps');
     const dataBpsSpan = document.getElementById('data-bps');
     const dataDpsSpan = document.getElementById('data-dps');
@@ -56,17 +54,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     tickerInput.addEventListener('input', function(e) {
         const val = this.value;
-        closeAllLists();
-        if (!val || val.length < 1) { return false; }
+        autocompleteList.innerHTML = ''; 
+        if (!val || val.length < 1) {
+            autocompleteList.style.display = 'none';
+            return false;
+        }
 
         let count = 0;
-        autocompleteList.innerHTML = ''; // 이전 목록 초기화
         tickerDataStore.forEach(item => {
             const pureSymbol = item.symbol.split('.')[0];
-            if (((item.name && item.name.toUpperCase().includes(val.toUpperCase())) || 
-                (pureSymbol && pureSymbol.toUpperCase().includes(val.toUpperCase()))) && count < 7) {
+            const searchText = val.toUpperCase();
+            const itemName = item.name.toUpperCase();
+            const itemSymbol = pureSymbol.toUpperCase();
+
+            if (((itemName && itemName.includes(searchText)) ||
+                (itemSymbol && itemSymbol.includes(searchText))) && count < 7) {
                 const b = document.createElement("DIV");
-                b.innerHTML = `<strong>${item.name.replace(new RegExp(val, 'gi'), (match) => `<u>${match}</u>`)}</strong> (${item.symbol.replace(new RegExp(val, 'gi'), (match) => `<u>${match}</u>`)})`;
+                
+                const escapedVal = val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp(escapedVal, 'gi');
+                
+                const displayName = item.name.replace(regex, (match) => `<u>${match}</u>`);
+                const displaySymbol = item.symbol.replace(regex, (match) => `<u>${match}</u>`);
+                
+                // 여기가 대략 91번째 줄 근처일 수 있습니다. 문자열 조합을 더 안전하게 변경.
+                b.innerHTML = '<strong>' + displayName + '</strong>' + ' (' + displaySymbol + ')';
+                
                 b.addEventListener('click', function(e) {
                     tickerInput.value = item.symbol;
                     closeAllLists();
@@ -88,9 +101,10 @@ document.addEventListener('DOMContentLoaded', () => {
             autocompleteList.style.display = 'none';
         }
     }
-    document.addEventListener("click', function (e) {
+    document.addEventListener('click', function (e) {
         closeAllLists(e.target);
     });
+
 
     analyzeButton.addEventListener('click', async () => {
         const ticker = tickerInput.value.trim().toUpperCase();
@@ -107,8 +121,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch(`/.netlify/functions/fetchStockData?ticker=${ticker}`);
             
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({error: `HTTP 오류! 상태: ${response.status}`})); // 한글
-                throw new Error(errorData.error || `HTTP 오류! 상태: ${response.status}`); // 한글
+                const errorData = await response.json().catch(() => ({error: `HTTP 오류! 상태: ${response.status}`}));
+                throw new Error(errorData.error || `HTTP 오류! 상태: ${response.status}`);
             }
             const data = await response.json();
 
@@ -117,13 +131,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             if (data.price === undefined || data.eps === undefined || data.bps === undefined ) {
-                 throw new Error(`핵심 재무 데이터(주가, EPS, BPS)가 부족하여 분석할 수 없습니다. (티커: ${ticker})`); // 한글
+                 throw new Error(`핵심 재무 데이터(주가, EPS, BPS)가 부족하여 분석할 수 없습니다. (티커: ${ticker})`);
             }
             displayResults(data);
 
         } catch (error) {
-            console.error("분석 오류:", error); // 한글
-            showError(`분석 중 오류 발생: ${error.message}`); // 한글
+            console.error("분석 오류:", error);
+            showError(`분석 중 오류 발생: ${error.message}`);
         } finally {
             showLoading(false);
         }
@@ -156,21 +170,17 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             g = 0.03;
         }
-        // 성장률은 음수가 될 수 있으나, DDM/EPS 성장 모델에서는 양수여야 하고 Ke보다 작아야 함.
-        // 여기서는 일단 계산된 g를 그대로 표시하고, 모델 적용 시 조건 체크.
-        // 너무 높은 성장률 방지 (예: Ke의 80% 이하)
         g = Math.min(g, ke * 0.8); 
-        // 너무 낮은 성장률 (음수) 방지 - 최소 0% 또는 작은 양수로 설정 가능 (예: 0.01 = 1%)
-        g = Math.max(0.01, g); // 최소 성장률 1%로 가정, 또는 0으로 해도 무방
+        g = Math.max(0.01, g);
 
         dataGSpan.textContent = (g * 100).toFixed(2);
 
         let fairValues = [];
 
-        const targetPerLow = 10, targetPerBase = 15, targetPerHigh = 20; // 미국 주식은 PER이 높은 경향이 있어 약간 상향 조정
+        const targetPerLow = 10, targetPerBase = 15, targetPerHigh = 20;
         targetPerRangeSpan.textContent = `${targetPerLow} / ${targetPerBase} / ${targetPerHigh}`;
         let perValLow = 0, perValBase = 0, perValHigh = 0;
-        if (data.eps !== undefined && data.eps > 0) { // EPS가 0보다 클 때만 의미
+        if (data.eps !== undefined && data.eps > 0) {
             perValLow = data.eps * targetPerLow;
             perValBase = data.eps * targetPerBase;
             perValHigh = data.eps * targetPerHigh;
@@ -178,17 +188,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         perValueRangeSpan.textContent = `$${perValLow.toFixed(2)} / $${perValBase.toFixed(2)} / $${perValHigh.toFixed(2)}`;
 
-        let baseTargetPbr = 1.5; // PBR 기본값 조정
-        if (data.roe && ke > 0 && g < ke ) { // g < ke 조건 추가
-             // 이론적 PBR = (ROE - g) / (Ke - g)를 단순화: ROE와 Ke의 비율 등을 참고하되, 과도한 값 방지
-             let justifiedPbr = (data.roe - g) / (ke - g) ; // RIM 기반의 이론적 PBR 유사 형태
-             if (justifiedPbr > 0) baseTargetPbr = Math.max(1.0, Math.min(justifiedPbr, 5.0)); // 1.0 ~ 5.0 사이로 제한
+        let baseTargetPbr = 1.5;
+        if (data.roe && ke > 0 && g < ke ) {
+             let justifiedPbr = (data.roe - g) / (ke - g) ;
+             if (justifiedPbr > 0 && isFinite(justifiedPbr)) baseTargetPbr = Math.max(1.0, Math.min(justifiedPbr, 5.0));
         }
         const targetPbrLow = Math.max(0.8, baseTargetPbr * 0.8);
-        const targetPbrHigh = Math.min(6.0, baseTargetPbr * 1.2); // PBR 상한 조정
+        const targetPbrHigh = Math.min(6.0, baseTargetPbr * 1.2);
         targetPbrRangeSpan.textContent = `${targetPbrLow.toFixed(2)} / ${baseTargetPbr.toFixed(2)} / ${targetPbrHigh.toFixed(2)}`;
         let pbrValLow = 0, pbrValBase = 0, pbrValHigh = 0;
-        if (data.bps !== undefined && data.bps > 0) { // BPS가 0보다 클 때만 의미
+        if (data.bps !== undefined && data.bps > 0) {
             pbrValLow = data.bps * targetPbrLow;
             pbrValBase = data.bps * baseTargetPbr;
             pbrValHigh = data.bps * targetPbrHigh;
@@ -199,8 +208,8 @@ document.addEventListener('DOMContentLoaded', () => {
         intrinsicKeSpan.textContent = (ke * 100).toFixed(2);
         intrinsicGSpan.textContent = (g * 100).toFixed(2);
         let intrinsicValLow = 0, intrinsicValBase = 0, intrinsicValHigh = 0;
-        let modelName = "내재가치 모델 (계산 불가)"; // 기본값
-        if (g < ke) { // 성장률이 요구수익률보다 작아야 모델이 의미 있음
+        let modelName = "내재가치 모델 (계산 불가)";
+        if (g < ke) {
             if (data.dps !== undefined && data.dps > 0) {
                 modelName = "DDM (배당할인)";
                 intrinsicValBase = (data.dps * (1 + g)) / (ke - g);
@@ -209,13 +218,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 intrinsicValBase = (data.eps * (1 + g)) / (ke - g);
             }
             
-            if (intrinsicValBase > 0) {
+            if (intrinsicValBase > 0 && isFinite(intrinsicValBase)) {
                 intrinsicValLow = intrinsicValBase * 0.8;
                 intrinsicValHigh = intrinsicValBase * 1.2;
                 fairValues.push({ model: modelName, low: intrinsicValLow, base: intrinsicValBase, high: intrinsicValHigh });
-            } else { // intrinsicValBase가 0이거나 음수면 계산 불가 처리
+            } else {
                 modelName = "내재가치 모델 (산출값 유효하지 않음)";
-                intrinsicValLow = 0; intrinsicValHigh = 0; intrinsicValBase = 0; // 명시적으로 0으로
+                intrinsicValLow = 0; intrinsicValHigh = 0; intrinsicValBase = 0;
             }
         }
         intrinsicModelNameSpan.textContent = modelName + ":";
@@ -225,7 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let validModels = 0;
 
         fairValues.forEach(fv => {
-            if (fv.base > 0 && isFinite(fv.base)) { // 유효하고 무한대가 아닌 값만
+            if (fv.base > 0 && isFinite(fv.base)) {
                 fvLowSum += fv.low;
                 fvBaseSum += fv.base;
                 fvHighSum += fv.high;
@@ -239,22 +248,20 @@ document.addEventListener('DOMContentLoaded', () => {
             finalFvBase = fvBaseSum / validModels;
             finalFvHigh = fvHighSum / validModels;
         } else {
-            showError("유효한 평가 모델 결과를 산출할 수 없습니다. 데이터가 부족하거나 적절하지 않습니다."); // 한글
+            showError("유효한 평가 모델 결과를 산출할 수 없습니다. 데이터가 부족하거나 적절하지 않습니다.");
             return;
         }
         
-        const chartMaxVal = Math.max(data.price, finalFvHigh, 0) * 1.1; // 0을 포함하여 음수 방지
+        const chartMaxVal = Math.max(data.price || 0, finalFvHigh, 0) * 1.1;
 
         valueLow.textContent = `$${finalFvLow.toFixed(2)}`;
         barLow.style.width = chartMaxVal > 0 ? `${(Math.max(0, finalFvLow) / chartMaxVal) * 100}%` : '0%';
-
 
         valueBase.textContent = `$${finalFvBase.toFixed(2)}`;
         barBase.style.width = chartMaxVal > 0 ? `${(Math.max(0, finalFvBase) / chartMaxVal) * 100}%` : '0%';
 
         valueHigh.textContent = `$${finalFvHigh.toFixed(2)}`;
         barHigh.style.width = chartMaxVal > 0 ? `${(Math.max(0, finalFvHigh) / chartMaxVal) * 100}%` : '0%';
-
 
         showResults();
     }
