@@ -211,7 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateKeInput(apiData.beta);
 
         let initialG;
-        const keForGCalc = inputKe ? (parseFloat(inputKe.value) / 100) : 0.08; // inputKe 존재 확인
+        const keForGCalc = inputKe ? (parseFloat(inputKe.value) / 100) : 0.08; 
         if (apiData.roeTTM && apiData.payoutRatioTTM !== undefined && apiData.payoutRatioTTM >= 0 && apiData.payoutRatioTTM <=1 && apiData.roeTTM > 0) {
             initialG = apiData.roeTTM * (1 - apiData.payoutRatioTTM);
         } else if (apiData.roeTTM && apiData.roeTTM > 0) {
@@ -226,11 +226,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const userAssumptions = getUserAssumptions();
         const fairValuesResult = calculateFairValues(apiData, userAssumptions);
         
-        createOrUpdatePriceChart(apiData.historicalData, fairValuesResult.final);
         updateModelDetailsDisplays(apiData, userAssumptions, fairValuesResult.modelOutputs);
-        
         if(fairValueSummaryP) fairValueSummaryP.textContent = `산출된 모델들의 기본 추정치 평균은 $${fairValuesResult.final.base.toFixed(2)} 입니다.`;
-        showResults();
+        
+        showResults(); // <<--- HTML 요소를 먼저 화면에 보이게 합니다.
+
+        // 차트 생성은 resultsArea가 화면에 표시된 후, 다음 프레임에서 실행하여 크기 계산 시간을 확보합니다.
+        requestAnimationFrame(() => {
+            createOrUpdatePriceChart(apiData.historicalData, fairValuesResult.final);
+        });
     }
 
     function getUserAssumptions() {
@@ -299,7 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateModelDetailsDisplays(apiData, assumptions, modelOutputs) {
-        const { ke, g } = assumptions;
+        const { ke, g } = assumptions; 
 
         if(modelEpsPerSpan) modelEpsPerSpan.textContent = apiData.eps !== undefined ? `$${apiData.eps.toFixed(2)}` : 'N/A';
         if(perValueRangeSpan) perValueRangeSpan.textContent = `$${modelOutputs.PER.low.toFixed(2)} / $${modelOutputs.PER.base.toFixed(2)} / $${modelOutputs.PER.high.toFixed(2)}`;
@@ -360,7 +364,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 timeScale: { borderColor: 'rgba(197, 203, 206, 0.8)', timeVisible: true, secondsVisible: false },
             });
 
-            console.log("priceChart object:", priceChart); // priceChart 객체 로깅
+            console.log("priceChart object:", priceChart); 
             if (priceChart) {
                 console.log("typeof priceChart.addCandlestickSeries:", typeof priceChart.addCandlestickSeries);
                 console.log("typeof priceChart.addHistogramSeries:", typeof priceChart.addHistogramSeries);
@@ -378,18 +382,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 borderDownColor: 'rgba(255, 82, 82, 1)', borderUpColor: 'rgba(0, 150, 136, 1)',
                 wickDownColor: 'rgba(255, 82, 82, 1)', wickUpColor: 'rgba(0, 150, 136, 1)',
             });
-            // historicalData의 time 필드가 'YYYY-MM-DD' 형식인지 확인 필요
+            
             const validCandlestickData = historicalData.filter(d => d.time && d.open !== undefined && d.high !== undefined && d.low !== undefined && d.close !== undefined)
-                                                    .map(d => ({...d, time: d.time.split('T')[0]})); // 시간 부분 제거, 날짜만 사용
+                                                    .map(d => ({...d, time: d.time.split('T')[0]})); 
             candlestickSeries.setData(validCandlestickData);
 
             if (typeof priceChart.addHistogramSeries === 'function') {
                 volumeSeries = priceChart.addHistogramSeries({
                     color: '#26a69a', priceFormat: { type: 'volume' },
-                    priceScaleId: 'volume', // 고유한 ID로 변경
+                    priceScaleId: 'volume_scale', 
                     scaleMargins: { top: 0.7, bottom: 0 },
                 });
-                 priceChart.priceScale('volume').applyOptions({ // 고유한 ID 사용
+                 priceChart.priceScale('volume_scale').applyOptions({ 
                      scaleMargins: { top: 0.7, bottom: 0 },
                  });
 
