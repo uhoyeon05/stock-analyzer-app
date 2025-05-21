@@ -1,19 +1,15 @@
 // script.js
 
-// LightweightCharts 라이브러리가 로드되었는지 확인하는 함수
-function checkChartLibraryLoaded() {
-    if (typeof window.LightweightCharts === 'undefined' || typeof window.LightweightCharts.createChart !== 'function') {
-        console.error('LightweightCharts 라이브러리가 전역 스코프에 로드되지 않았거나 createChart 함수를 찾을 수 없습니다.');
-        const errDiv = document.getElementById('error-message');
-        if (errDiv) {
-            errDiv.textContent = '차트 라이브러리 로드 실패. 인터넷 연결을 확인하고 페이지를 새로고침 해보세요. 문제가 지속되면 HTML 파일의 라이브러리 <script> 태그를 확인하세요.';
-            errDiv.style.display = 'block';
-        }
-        return false;
+// LightweightCharts 라이브러리가 로드되었는지 확인하고, 로드될 때까지 기다리는 함수
+function ensureChartLibraryIsReady(callback) {
+    if (typeof window.LightweightCharts !== 'undefined' && typeof window.LightweightCharts.createChart === 'function') {
+        console.log("LightweightCharts library is ready.");
+        callback();
+    } else {
+        console.warn("LightweightCharts library not ready yet, retrying in 100ms...");
+        setTimeout(() => ensureChartLibraryIsReady(callback), 100); // 0.1초 후 재시도
     }
-    return true;
 }
-
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- HTML 요소 가져오기 ---
@@ -127,31 +123,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (analyzeButton) { 
         analyzeButton.addEventListener('click', async () => {
-            // 분석 시작 전 차트 라이브러리 로드 상태 확인
-            if (!checkChartLibraryLoaded()) return; 
-
-            const ticker = tickerInput.value.trim().toUpperCase();
-            if (!ticker) { showError('티커를 입력해주세요.'); return; }
-            showLoading(true); hideError(); hideResults();
-            try {
-                const response = await fetch(`/.netlify/functions/fetchStockData?ticker=${ticker}`);
-                if (!response.ok) {
-                    const errData = await response.json().catch(()=>({error: `HTTP 오류! 상태: ${response.status}`}));
-                    throw new Error(errData.error || `HTTP 오류! 상태: ${response.status}`);
+            ensureChartLibraryIsReady(async () => { // 라이브러리 준비 후 분석 실행
+                const ticker = tickerInput.value.trim().toUpperCase();
+                if (!ticker) { showError('티커를 입력해주세요.'); return; }
+                showLoading(true); hideError(); hideResults();
+                try {
+                    const response = await fetch(`/.netlify/functions/fetchStockData?ticker=${ticker}`);
+                    if (!response.ok) {
+                        const errData = await response.json().catch(()=>({error: `HTTP 오류! 상태: ${response.status}`}));
+                        throw new Error(errData.error || `HTTP 오류! 상태: ${response.status}`);
+                    }
+                    currentStockData = await response.json();
+                    if (currentStockData.error) throw new Error(currentStockData.error);
+                    if (!currentStockData.price || currentStockData.eps === undefined || currentStockData.bps === undefined || !currentStockData.historicalData) {
+                         throw new Error(`핵심 재무 또는 과거 주가 데이터가 부족하여 분석할 수 없습니다. (티커: ${ticker})`);
+                    }
+                    initializePageWithData(currentStockData);
+                } catch (error) {
+                    console.error("분석 오류:", error.message, error.stack);
+                    currentStockData = null;
+                    showError(`분석 중 오류 발생: ${error.message}`);
+                } finally {
+                    showLoading(false);
                 }
-                currentStockData = await response.json();
-                if (currentStockData.error) throw new Error(currentStockData.error);
-                if (!currentStockData.price || currentStockData.eps === undefined || currentStockData.bps === undefined || !currentStockData.historicalData) {
-                     throw new Error(`핵심 재무 또는 과거 주가 데이터가 부족하여 분석할 수 없습니다. (티커: ${ticker})`);
-                }
-                initializePageWithData(currentStockData);
-            } catch (error) {
-                console.error("분석 오류:", error.message, error.stack);
-                currentStockData = null;
-                showError(`분석 중 오류 발생: ${error.message}`);
-            } finally {
-                showLoading(false);
-            }
+            });
         });
     } else {
         console.error("Analyze button not found.");
@@ -159,13 +154,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (recalculateButton) { 
         recalculateButton.addEventListener('click', () => {
-            if (!checkChartLibraryLoaded()) return; // 재계산 시에도 확인
-            if (!currentStockData) { showError('먼저 주식을 분석해주세요.'); return; }
-            hideError();
-            const userAssumptions = getUserAssumptions();
-            const fairValuesResult = calculateFairValues(currentStockData, userAssumptions);
-            updateFairValueLinesOnChart(fairValuesResult.final); 
-            updateModelDetailsDisplays(currentStockData, userAssumptions, fairValuesResult.modelOutputs);
+            ensureChartLibraryIsReady(() => { // 라이브러리 준비 후 재계산 실행
+                if (!currentStockData) { showError('먼저 주식을 분석해주세요.'); return; }
+                hideError();
+                const userAssumptions = getUserAssumptions();
+                const fairValuesResult = calculateFairValues(currentStockData, userAssumptions);
+                updateFairValueLinesOnChart(fairValuesResult.final); 
+                updateModelDetailsDisplays(currentStockData, userAssumptions, fairValuesResult.modelOutputs);
+            });
         });
     } else {
         console.error("Recalculate button not found.");
@@ -185,7 +181,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    function updateKeInput(betaValue) { // 이전과 동일
+    function updateKeInput(betaValue) { /* ... 이전과 동일 ... */ 
         if (!inputRf || !inputErp || !inputKe) return; 
         const rf = parseFloat(inputRf.value) || 0;
         const erp = parseFloat(inputErp.value) || 0;
@@ -194,7 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
         inputKe.value = calculatedKe.toFixed(1);
     }
     
-    function initializePageWithData(apiData) { // 이전과 거의 동일
+    function initializePageWithData(apiData) { /* ... 이전과 거의 동일 ... */ 
         if (stockNameTitle) stockNameTitle.textContent = `${apiData.companyName || apiData.symbol} (${apiData.symbol || 'N/A'})`;
         if (currentPriceSpan) currentPriceSpan.textContent = apiData.price !== undefined ? apiData.price.toFixed(2) : 'N/A';
         if (dataDateSpan) dataDateSpan.textContent = 'API 제공 기준';
@@ -346,8 +342,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // DOMContentLoaded 이후, 그리고 함수 호출 시점에 라이브러리 로드 상태를 다시 한번 명시적으로 확인합니다.
-        if (!checkChartLibraryLoaded()) { // checkChartLibraryLoaded 함수를 호출
+        // 라이브러리 로드 확인 함수 호출
+        if (!checkChartLibraryLoaded()) {
             if(priceChartContainer) priceChartContainer.textContent = '차트 라이브러리 로드 실패. HTML을 확인하세요.';
             return;
         }
@@ -362,70 +358,70 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            // window.LightweightCharts를 명시적으로 사용합니다.
-            priceChart = window.LightweightCharts.createChart(priceChartContainer, {
+            priceChart = window.LightweightCharts.createChart(priceChartContainer, { // window. 명시
                 width: containerWidth,
                 height: containerHeight, 
                 layout: { backgroundColor: '#ffffff', textColor: 'rgba(33, 56, 77, 1)' },
                 grid: { vertLines: { color: 'rgba(197, 203, 206, 0.2)' }, horzLines: { color: 'rgba(197, 203, 206, 0.2)' }},
-                crosshair: { mode: window.LightweightCharts.CrosshairMode.Normal }, // mode 철자 수정 및 window.LightweightCharts 사용
+                crosshair: { mode: window.LightweightCharts.CrosshairMode.Normal }, // window. 명시
                 rightPriceScale: { borderColor: 'rgba(197, 203, 206, 0.8)' },
                 timeScale: { borderColor: 'rgba(197, 203, 206, 0.8)', timeVisible: true, secondsVisible: false },
             });
         } catch (e) {
             console.error("LightweightCharts.createChart 호출 중 심각한 오류:", e);
             if(priceChartContainer) priceChartContainer.textContent = '차트 생성 중 심각한 오류 발생. 콘솔 확인.';
+            priceChart = null; // 오류 발생 시 priceChart를 null로 설정
             return;
         }
 
-        // priceChart가 객체이고, 필요한 메소드가 함수 형태인지 더 엄격하게 확인
-        if (priceChart && typeof priceChart === 'object' && typeof priceChart.addCandlestickSeries === 'function') {
-            candlestickSeries = priceChart.addCandlestickSeries({
-                upColor: 'rgba(0, 150, 136, 0.8)', downColor: 'rgba(255, 82, 82, 0.8)',
-                borderDownColor: 'rgba(255, 82, 82, 1)', borderUpColor: 'rgba(0, 150, 136, 1)',
-                wickDownColor: 'rgba(255, 82, 82, 1)', wickUpColor: 'rgba(0, 150, 136, 1)',
-            });
-            
-            const validCandlestickData = historicalData
-                .filter(d => d.time && typeof d.open === 'number' && typeof d.high === 'number' && typeof d.low === 'number' && typeof d.close === 'number')
-                .map(d => ({...d, time: d.time.split('T')[0]})); 
-            candlestickSeries.setData(validCandlestickData);
-
-            if (typeof priceChart.addHistogramSeries === 'function') {
-                volumeSeries = priceChart.addHistogramSeries({
-                    color: '#26a69a', priceFormat: { type: 'volume' },
-                    priceScaleId: 'volume_axis', 
-                    scaleMargins: { top: 0.70, bottom: 0 },
-                });
-                if (priceChart.priceScale && typeof priceChart.priceScale === 'function') { // priceScale 메소드 존재 확인
-                    priceChart.priceScale('volume_axis').applyOptions({ 
-                        scaleMargins: { top: 0.70, bottom: 0 },
-                    });
-                }
-
-                const volumeData = historicalData
-                    .filter(d => d.time && typeof d.volume === 'number')
-                    .map(d => ({ 
-                        time: d.time.split('T')[0], 
-                        value: d.volume, 
-                        color: d.close > d.open ? 'rgba(0, 150, 136, 0.4)' : 'rgba(255, 82, 82, 0.4)' 
-                    }));
-                volumeSeries.setData(volumeData);
-            } else { 
-                console.error("priceChart.addHistogramSeries is not a function");
-            }
-            
-            updateFairValueLinesOnChart(fairValueResults); 
-            if (priceChart.timeScale && typeof priceChart.timeScale === 'function' && typeof priceChart.timeScale().fitContent === 'function') {
-                 priceChart.timeScale().fitContent(); 
-            }
-        } else {
+        if (!priceChart || typeof priceChart.addCandlestickSeries !== 'function') { // priceChart가 유효한 객체인지 다시 한번 확인
             console.error("priceChart 객체가 유효하지 않거나 addCandlestickSeries 메소드가 없습니다. createChart 결과:", priceChart);
             if(priceChartContainer) priceChartContainer.textContent = '차트 시리즈 추가 중 오류 (객체 생성 실패).';
+            return;
+        }
+        
+        candlestickSeries = priceChart.addCandlestickSeries({
+            upColor: 'rgba(0, 150, 136, 0.8)', downColor: 'rgba(255, 82, 82, 0.8)',
+            borderDownColor: 'rgba(255, 82, 82, 1)', borderUpColor: 'rgba(0, 150, 136, 1)',
+            wickDownColor: 'rgba(255, 82, 82, 1)', wickUpColor: 'rgba(0, 150, 136, 1)',
+        });
+        
+        const validCandlestickData = historicalData
+            .filter(d => d.time && typeof d.open === 'number' && typeof d.high === 'number' && typeof d.low === 'number' && typeof d.close === 'number')
+            .map(d => ({...d, time: d.time.split('T')[0]})); 
+        candlestickSeries.setData(validCandlestickData);
+
+        if (typeof priceChart.addHistogramSeries === 'function') {
+            volumeSeries = priceChart.addHistogramSeries({
+                color: '#26a69a', priceFormat: { type: 'volume' },
+                priceScaleId: 'volume_axis', 
+                scaleMargins: { top: 0.70, bottom: 0 },
+            });
+            if (priceChart.priceScale && typeof priceChart.priceScale === 'function') {
+                priceChart.priceScale('volume_axis').applyOptions({ 
+                    scaleMargins: { top: 0.70, bottom: 0 },
+                });
+            }
+
+            const volumeData = historicalData
+                .filter(d => d.time && typeof d.volume === 'number')
+                .map(d => ({ 
+                    time: d.time.split('T')[0], 
+                    value: d.volume, 
+                    color: d.close > d.open ? 'rgba(0, 150, 136, 0.4)' : 'rgba(255, 82, 82, 0.4)' 
+                }));
+            volumeSeries.setData(volumeData);
+        } else { 
+            console.error("priceChart.addHistogramSeries is not a function");
+        }
+        
+        updateFairValueLinesOnChart(fairValueResults); 
+        if (priceChart.timeScale && typeof priceChart.timeScale === 'function' && typeof priceChart.timeScale().fitContent === 'function') {
+             priceChart.timeScale().fitContent(); 
         }
     }
     
-    function updateFairValueLinesOnChart(fairValueResults) { // LightweightCharts.LineStyle 사용하도록 수정
+    function updateFairValueLinesOnChart(fairValueResults) { /* ... 이전과 동일, LineStyle 부분 window.LightweightCharts 사용 확인 ... */ 
         if (!candlestickSeries || !fairValueResults || typeof candlestickSeries.createPriceLine !== 'function') {
             console.warn("Candlestick series or createPriceLine method not available for updating fair value lines.");
             return;
@@ -433,9 +429,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fairValueLines.forEach(line => candlestickSeries.removePriceLine(line));
         fairValueLines = [];
 
-        // LightweightCharts 객체가 로드되었는지 확인 후 LineStyle 사용
-        const LineStyle = window.LightweightCharts ? window.LightweightCharts.LineStyle : { Solid: 0, Dashed: 2 };
-
+        const LineStyle = (typeof window.LightweightCharts !== 'undefined' && window.LightweightCharts.LineStyle) ? window.LightweightCharts.LineStyle : { Solid: 0, Dashed: 2 }; // 방어 코드
 
         const lineOptions = (price, color, title, lineStyle = LineStyle.Solid) => ({
             price: price, color: color, lineWidth: 2, lineStyle: lineStyle,
@@ -453,7 +447,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // --- 유틸리티 함수 ---
     function showLoading(isLoading) { if(loadingIndicator) loadingIndicator.style.display = isLoading ? 'block' : 'none'; }
     function showError(message) { if(errorMessageDiv) {errorMessageDiv.textContent = message; errorMessageDiv.style.display = 'block';} }
     function hideError() { if(errorMessageDiv) errorMessageDiv.style.display = 'none'; }
