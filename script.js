@@ -1,14 +1,19 @@
 // script.js
 
-// LightweightCharts 라이브러리가 로드되었는지 확인하고, 로드될 때까지 기다리는 함수
-function ensureChartLibraryIsReady(callback) {
-    if (typeof window.LightweightCharts !== 'undefined' && typeof window.LightweightCharts.createChart === 'function') {
-        console.log("LightweightCharts library is ready.");
-        callback();
-    } else {
-        console.warn("LightweightCharts library not ready yet, retrying in 100ms...");
-        setTimeout(() => ensureChartLibraryIsReady(callback), 100); // 0.1초 후 재시도
+// ★★★★★ 중요: 이 함수는 DOMContentLoaded 바깥, 스크립트 최상단에 위치해야 합니다. ★★★★★
+function checkChartLibraryIsReady() {
+    if (typeof window.LightweightCharts === 'undefined' || typeof window.LightweightCharts.createChart !== 'function') {
+        console.error('LightweightCharts 라이브러리가 전역 스코프에 로드되지 않았거나 createChart 함수를 찾을 수 없습니다.');
+        const errDiv = document.getElementById('error-message');
+        if (errDiv) { // DOM 요소가 로드되었을 수도 있고 아닐 수도 있으므로 null 체크
+            errDiv.textContent = '차트 라이브러리 로드 실패. 인터넷 연결을 확인하고 페이지를 새로고침 해보세요. HTML <head>의 라이브러리 <script> 태그를 확인하세요.';
+            errDiv.style.display = 'block';
+        }
+        return false;
     }
+    // 라이브러리가 준비되었음을 명시적으로 한번만 알리기 위해, 또는 필요시마다 호출되도록 할 수 있음.
+    // console.log("LightweightCharts library is ready. (called from checkChartLibraryIsReady)");
+    return true;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -26,10 +31,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const dataDateSpan = document.getElementById('data-date');
 
     const priceChartContainer = document.getElementById('price-chart-container');
-    let priceChart = null; 
+    let priceChart = null;
     let candlestickSeries = null;
     let volumeSeries = null;
-    let fairValueLines = []; 
+    let fairValueLines = [];
 
     const fairValueSummaryP = document.getElementById('fair-value-summary');
 
@@ -65,11 +70,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const apiPayoutRatioSpan = document.getElementById('api-payout-ratio');
 
     let tickerDataStore = [];
-    let currentStockData = null; 
+    let currentStockData = null;
 
     async function loadTickerData() {
         try {
-            const response = await fetch('tickers.json'); 
+            const response = await fetch('tickers.json');
             if (!response.ok) throw new Error(`Ticker list fetch failed: ${response.status}`);
             tickerDataStore = await response.json();
         } catch (error) {
@@ -78,17 +83,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     loadTickerData();
 
-    if (tickerInput && autocompleteList) { 
+    if (tickerInput && autocompleteList) {
         tickerInput.addEventListener('input', function(e) {
             const val = this.value;
-            autocompleteList.innerHTML = ''; 
+            autocompleteList.innerHTML = '';
             if (!val || val.length < 1) {
                 autocompleteList.style.display = 'none';
                 return false;
             }
             let count = 0;
             tickerDataStore.forEach(item => {
-                const pureSymbol = item.symbol.split('.')[0]; 
+                const pureSymbol = item.symbol.split('.')[0];
                 const searchText = val.toUpperCase();
                 const itemName = item.name.toUpperCase();
                 const itemSymbol = pureSymbol.toUpperCase();
@@ -121,9 +126,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     document.addEventListener('click', (e) => closeAllLists(e.target));
 
-    if (analyzeButton) { 
+    if (analyzeButton) {
         analyzeButton.addEventListener('click', async () => {
-            ensureChartLibraryIsReady(async () => { // 라이브러리 준비 후 분석 실행
+            // ensureChartLibraryIsReady의 콜백으로 분석 로직을 실행합니다.
+            ensureChartLibraryIsReady(async () => {
                 const ticker = tickerInput.value.trim().toUpperCase();
                 if (!ticker) { showError('티커를 입력해주세요.'); return; }
                 showLoading(true); hideError(); hideResults();
@@ -152,14 +158,15 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error("Analyze button not found.");
     }
 
-    if (recalculateButton) { 
+    if (recalculateButton) {
         recalculateButton.addEventListener('click', () => {
-            ensureChartLibraryIsReady(() => { // 라이브러리 준비 후 재계산 실행
+            // ensureChartLibraryIsReady의 콜백으로 재계산 로직을 실행합니다.
+            ensureChartLibraryIsReady(() => {
                 if (!currentStockData) { showError('먼저 주식을 분석해주세요.'); return; }
                 hideError();
                 const userAssumptions = getUserAssumptions();
                 const fairValuesResult = calculateFairValues(currentStockData, userAssumptions);
-                updateFairValueLinesOnChart(fairValuesResult.final); 
+                updateFairValueLinesOnChart(fairValuesResult.final);
                 updateModelDetailsDisplays(currentStockData, userAssumptions, fairValuesResult.modelOutputs);
             });
         });
@@ -167,9 +174,9 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error("Recalculate button not found.");
     }
 
-    if (inputRf && inputErp) { 
+    if (inputRf && inputErp) {
         [inputRf, inputErp].forEach(input => {
-            if (input) { 
+            if (input) {
                 input.addEventListener('change', () => {
                     let betaToUse = 1.0;
                     if (currentStockData && currentStockData.beta !== undefined && currentStockData.beta !== null) {
@@ -181,7 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    function updateKeInput(betaValue) { /* ... 이전과 동일 ... */ 
+    function updateKeInput(betaValue) { 
         if (!inputRf || !inputErp || !inputKe) return; 
         const rf = parseFloat(inputRf.value) || 0;
         const erp = parseFloat(inputErp.value) || 0;
@@ -190,7 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
         inputKe.value = calculatedKe.toFixed(1);
     }
     
-    function initializePageWithData(apiData) { /* ... 이전과 거의 동일 ... */ 
+    function initializePageWithData(apiData) { 
         if (stockNameTitle) stockNameTitle.textContent = `${apiData.companyName || apiData.symbol} (${apiData.symbol || 'N/A'})`;
         if (currentPriceSpan) currentPriceSpan.textContent = apiData.price !== undefined ? apiData.price.toFixed(2) : 'N/A';
         if (dataDateSpan) dataDateSpan.textContent = 'API 제공 기준';
@@ -342,11 +349,13 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // 라이브러리 로드 확인 함수 호출
-        if (!checkChartLibraryLoaded()) {
-            if(priceChartContainer) priceChartContainer.textContent = '차트 라이브러리 로드 실패. HTML을 확인하세요.';
-            return;
+        // ensureChartLibraryIsReady 함수는 이제 버튼 클릭 시점에 호출되므로, 여기서는 바로 사용 시도
+        if (typeof window.LightweightCharts === 'undefined' || typeof window.LightweightCharts.createChart !== 'function') {
+             console.error('createOrUpdatePriceChart: LightweightCharts 라이브러리가 로드되지 않았습니다. ensureChartLibraryIsReady 확인 필요.');
+             if(priceChartContainer) priceChartContainer.textContent = '차트 라이브러리 문제 (createOrUpdate)';
+             return;
         }
+
 
         const containerWidth = priceChartContainer.clientWidth;
         const containerHeight = priceChartContainer.clientHeight;
@@ -358,28 +367,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            priceChart = window.LightweightCharts.createChart(priceChartContainer, { // window. 명시
+            priceChart = window.LightweightCharts.createChart(priceChartContainer, {
                 width: containerWidth,
                 height: containerHeight, 
                 layout: { backgroundColor: '#ffffff', textColor: 'rgba(33, 56, 77, 1)' },
                 grid: { vertLines: { color: 'rgba(197, 203, 206, 0.2)' }, horzLines: { color: 'rgba(197, 203, 206, 0.2)' }},
-                crosshair: { mode: window.LightweightCharts.CrosshairMode.Normal }, // window. 명시
+                crosshair: { mode: window.LightweightCharts.CrosshairMode.Normal },
                 rightPriceScale: { borderColor: 'rgba(197, 203, 206, 0.8)' },
                 timeScale: { borderColor: 'rgba(197, 203, 206, 0.8)', timeVisible: true, secondsVisible: false },
             });
         } catch (e) {
             console.error("LightweightCharts.createChart 호출 중 심각한 오류:", e);
             if(priceChartContainer) priceChartContainer.textContent = '차트 생성 중 심각한 오류 발생. 콘솔 확인.';
-            priceChart = null; // 오류 발생 시 priceChart를 null로 설정
+            priceChart = null; 
             return;
         }
 
-        if (!priceChart || typeof priceChart.addCandlestickSeries !== 'function') { // priceChart가 유효한 객체인지 다시 한번 확인
+        if (!priceChart || typeof priceChart.addCandlestickSeries !== 'function') { // 이 부분이 중요합니다.
             console.error("priceChart 객체가 유효하지 않거나 addCandlestickSeries 메소드가 없습니다. createChart 결과:", priceChart);
             if(priceChartContainer) priceChartContainer.textContent = '차트 시리즈 추가 중 오류 (객체 생성 실패).';
-            return;
+            return; // 여기서 중단됩니다.
         }
         
+        // 이후 코드는 priceChart가 유효하다고 가정하고 진행됩니다.
         candlestickSeries = priceChart.addCandlestickSeries({
             upColor: 'rgba(0, 150, 136, 0.8)', downColor: 'rgba(255, 82, 82, 0.8)',
             borderDownColor: 'rgba(255, 82, 82, 1)', borderUpColor: 'rgba(0, 150, 136, 1)',
@@ -429,7 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fairValueLines.forEach(line => candlestickSeries.removePriceLine(line));
         fairValueLines = [];
 
-        const LineStyle = (typeof window.LightweightCharts !== 'undefined' && window.LightweightCharts.LineStyle) ? window.LightweightCharts.LineStyle : { Solid: 0, Dashed: 2 }; // 방어 코드
+        const LineStyle = (typeof window.LightweightCharts !== 'undefined' && window.LightweightCharts.LineStyle) ? window.LightweightCharts.LineStyle : { Solid: 0, Dashed: 2 }; 
 
         const lineOptions = (price, color, title, lineStyle = LineStyle.Solid) => ({
             price: price, color: color, lineWidth: 2, lineStyle: lineStyle,
