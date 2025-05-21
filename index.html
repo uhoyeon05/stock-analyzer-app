@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>간단 적정주가 분석</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/moment@2.29.1/moment.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@1.0.0/dist/chartjs-adapter-moment.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -29,13 +31,16 @@
             <p><strong>기준일:</strong> <span id="data-date">API 제공 기준</span></p>
 
             <h3>주가 차트 (1년) 및 적정주가 범위</h3>
-            <div id="price-chart-container" style="width: 100%; height: 400px; margin-bottom: 20px;"></div>
+            <div id="price-chart-wrapper" style="width: 100%; height: 400px; margin-bottom: 20px; position: relative;">
+                <canvas id="price-chart-canvas"></canvas>
+            </div>
             <p id="fair-value-summary" style="text-align: center; font-style: italic;"></p>
 
 
             <h4>평가 모델별 분석 근거 및 사용자 설정</h4>
             <div id="model-details-area" class="model-details">
-                <div class="model-item">
+                {/* ... (이전 HTML의 PER, PBR, 내재가치 모델 입력 및 표시 부분 그대로 유지) ... */}
+                 <div class="model-item">
                     <strong>PER 모델:</strong>
                     <ul>
                         <li>목표 PER (낮음/기본/높음):
@@ -60,7 +65,8 @@
                     </ul>
                 </div>
                 <div class="model-item">
-                    <strong id="intrinsic-model-name-title">내재가치 모델:</strong> <ul>
+                    <strong id="intrinsic-model-name-title">내재가치 모델:</strong>
+                    <ul>
                         <li>
                             요구수익률(Ke): <input type="number" step="0.1" id="input-ke" class="assumption-input" title="무위험수익률(Rf) + Beta * 주식위험프리미엄(ERP) 로 계산됨. 직접 수정 가능.">%
                             (Rf: <input type="number" step="0.1" id="input-rf" class="assumption-input assumption-small" value="3.0">% +
@@ -74,7 +80,7 @@
                         <li>산출 주가 (낮음/기본/높음): <span id="intrinsic-value-range"></span></li>
                     </ul>
                     <div id="intrinsic-model-description" class="model-description">
-                        {여기에 내재가치 모델 설명이 들어갑니다}
+                        {/* 내재가치 모델 설명 표시될 곳 */}
                     </div>
                 </div>
             </div>
@@ -83,6 +89,7 @@
 
             <h4>주요 지표 현황 및 의미</h4>
             <ul id="financial-indicators-list" class="indicators-list">
+                 {/* ... (이전 HTML의 주요 지표 표시 부분 그대로 유지) ... */}
                 <li><strong>EPS (TTM):</strong> <span id="api-eps"></span>
                     <p class="indicator-desc">(주당순이익: 기업이 1주당 얼마의 순이익을 벌었는지 나타내는 지표)</p></li>
                 <li><strong>BPS (TTM):</strong> <span id="api-bps"></span>
