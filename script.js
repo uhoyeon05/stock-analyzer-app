@@ -1,126 +1,237 @@
-// netlify/functions/fetchStockData.js
-const fetch = require('node-fetch');
+// script.js
 
-// Netlify 환경 변수에서 Polygon.io API 키를 가져옵니다.
-// 이름은 FMP_API_KEY 대신 POLYGON_API_KEY로 변경하는 것이 좋습니다.
-// Netlify 대시보드에서 이 이름으로 환경 변수를 새로 만드시거나 기존 것을 수정해주세요.
-const API_KEY = process.env.POLYGON_API_KEY;
+function ensureChartJsIsReady(callback) {
+    if (typeof window.Chart !== 'undefined' && typeof window.moment !== 'undefined' && typeof Chart.register === 'function' && typeof window.ChartAnnotation !== 'undefined') {
+        callback();
+    } else {
+        console.warn("Chart.js, Moment.js, or Annotation Plugin not ready yet, retrying in 200ms...");
+        setTimeout(() => ensureChartJsIsReady(callback), 200);
+    }
+}
 
-// 날짜를 YYYY-MM-DD 형식으로 변환하는 함수
-const formatDate = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-};
+window.onload = () => {
+    const tickerInput = document.getElementById('ticker-input');
+    const analyzeButton = document.getElementById('analyze-button');
+    const recalculateButton = document.getElementById('recalculate-button');
+    const loadingIndicator = document.getElementById('loading-indicator');
+    const errorMessageDiv = document.getElementById('error-message');
+    const resultsArea = document.getElementById('results-area');
+    const autocompleteList = document.getElementById('autocomplete-list');
+    const stockNameTitle = document.getElementById('stock-name-title');
+    const currentPriceSpan = document.getElementById('current-price');
+    const dataDateSpan = document.getElementById('data-date');
+    const priceChartCanvas = document.getElementById('price-chart-canvas');
+    let priceChartInstance = null;
+    const fairValueSummaryP = document.getElementById('fair-value-summary');
+    const modelEpsPerSpan = document.getElementById('model-eps-per');
+    const perValueRangeSpan = document.getElementById('per-value-range');
+    const modelBpsPbrSpan = document.getElementById('model-bps-pbr');
+    const pbrValueRangeSpan = document.getElementById('pbr-value-range');
+    const intrinsicModelNameTitleSpan = document.getElementById('intrinsic-model-name-title');
+    const intrinsicFormulaDisplaySpan = document.getElementById('intrinsic-formula-display');
+    const intrinsicValueRangeSpan = document.getElementById('intrinsic-value-range');
+    const intrinsicModelDescriptionDiv = document.getElementById('intrinsic-model-description');
+    const inputPerLow = document.getElementById('input-per-low');
+    const inputPerBase = document.getElementById('input-per-base');
+    const inputPerHigh = document.getElementById('input-per-high');
+    const inputPbrLow = document.getElementById('input-pbr-low');
+    const inputPbrBase = document.getElementById('input-pbr-base');
+    const inputPbrHigh = document.getElementById('input-pbr-high');
+    const inputRf = document.getElementById('input-rf');
+    const inputErp = document.getElementById('input-erp');
+    const inputKe = document.getElementById('input-ke');
+    const inputG = document.getElementById('input-g');
+    const dataBetaDisplaySpan = document.getElementById('data-beta-display');
+    const apiEpsSpan = document.getElementById('api-eps');
+    const apiBpsSpan = document.getElementById('api-bps');
+    const apiDpsSpan = document.getElementById('api-dps');
+    const apiPerSpan = document.getElementById('api-per');
+    const apiPbrSpan = document.getElementById('api-pbr');
+    const apiDividendYieldSpan = document.getElementById('api-dividend-yield');
+    const apiRoeSpan = document.getElementById('api-roe');
+    const apiBetaSpan = document.getElementById('api-beta');
+    const apiPayoutRatioSpan = document.getElementById('api-payout-ratio');
 
-exports.handler = async (event, context) => {
-    const ticker = event.queryStringParameters.ticker;
+    let tickerDataStore = [];
+    let currentStockData = null;
 
-    if (!ticker) {
-        return {
-            statusCode: 400,
-            body: JSON.stringify({ error: '티커가 필요합니다.' }),
-        };
+    async function loadTickerData() { /* 이전과 동일 */ }
+    loadTickerData();
+
+    if (tickerInput && autocompleteList) { /* 이전과 동일 */ }
+    function closeAllLists(elmnt) { /* 이전과 동일 */ }
+    document.addEventListener('click', (e) => closeAllLists(e.target));
+
+    if (analyzeButton) {
+        analyzeButton.addEventListener('click', () => {
+            ensureChartJsIsReady(async () => {
+                const ticker = tickerInput.value.trim().toUpperCase();
+                if (!ticker) { showError('티커를 입력해주세요.'); return; }
+                showLoading(true); hideError(); hideResults();
+                try {
+                    const response = await fetch(`/.netlify/functions/fetchStockData?ticker=${ticker}`);
+                    if (!response.ok) {
+                        const errData = await response.json().catch(()=>({error: `HTTP 오류! 상태: ${response.status}`}));
+                        throw new Error(errData.error || `HTTP 오류! 상태: ${response.status}`);
+                    }
+                    currentStockData = await response.json(); // Polygon.io API 응답으로 변경됨
+                    if (currentStockData.error) throw new Error(currentStockData.error);
+                    
+                    // Polygon.io 응답에 price와 historicalData가 있는지 확인
+                    if (currentStockData.price === undefined || currentStockData.price === null || 
+                        !currentStockData.historicalData || currentStockData.historicalData.length === 0) {
+                         throw new Error(`주가 또는 과거 주가 데이터가 부족하여 분석할 수 없습니다. (티커: ${ticker})`);
+                    }
+                    // EPS, BPS 등은 Polygon.io 무료에서 안 올 수 있으므로, 없어도 오류는 내지 않음.
+                    // 다만, 이 값들이 없으면 적정주가 모델 계산이 제한됨.
+                    initializePageWithData(currentStockData);
+                } catch (error) {
+                    console.error("분석 오류:", error.message, error.stack);
+                    currentStockData = null;
+                    showError(`분석 중 오류 발생: ${error.message}`);
+                } finally {
+                    showLoading(false);
+                }
+            });
+        });
+    } else { console.error("Analyze button not found."); }
+
+    if (recalculateButton) { /* 이전과 동일하나, createOrUpdatePriceChart 호출은 유지 */
+        recalculateButton.addEventListener('click', () => {
+            ensureChartJsIsReady(() => {
+                if (!currentStockData) { showError('먼저 주식을 분석해주세요.'); return; }
+                hideError();
+                const userAssumptions = getUserAssumptions();
+                const fairValuesResult = calculateFairValues(currentStockData, userAssumptions);
+                createOrUpdatePriceChart(currentStockData.historicalData, fairValuesResult.final);
+                updateModelDetailsDisplays(currentStockData, userAssumptions, fairValuesResult.modelOutputs);
+            });
+        });
     }
 
-    if (!API_KEY) {
-        return {
-            statusCode: 500,
-            body: JSON.stringify({ error: 'Polygon.io API 키가 서버에 설정되지 않았습니다.' }),
-        };
-    }
+    if (inputRf && inputErp) { /* 이전과 동일 */ }
+    function updateKeInput(betaValue) { /* 이전과 동일 */ }
+    
+    function initializePageWithData(apiData) {
+        if (stockNameTitle) stockNameTitle.textContent = `${apiData.companyName || apiData.symbol} (${apiData.symbol || 'N/A'})`;
+        if (currentPriceSpan) currentPriceSpan.textContent = apiData.price !== undefined && apiData.price !== null ? apiData.price.toFixed(2) : 'N/A';
+        if (dataDateSpan) dataDateSpan.textContent = 'API 제공 기준';
 
-    // 과거 1년치 주가 데이터 가져오기
-    const today = new Date();
-    const toDate = formatDate(today);
-    const oneYearAgo = new Date(today);
-    oneYearAgo.setFullYear(today.getFullYear() - 1);
-    const fromDate = formatDate(oneYearAgo);
+        // Polygon.io에서 직접 제공하지 않는 값들은 'N/A' 또는 기본값 처리
+        if(apiEpsSpan) apiEpsSpan.textContent = apiData.eps !== undefined && apiData.eps !== null ? `$${apiData.eps.toFixed(2)}` : 'N/A (정보 없음)';
+        if(apiBpsSpan) apiBpsSpan.textContent = apiData.bps !== undefined && apiData.bps !== null ? `$${apiData.bps.toFixed(2)}` : 'N/A (정보 없음)';
+        if(apiDpsSpan) apiDpsSpan.textContent = apiData.dpsTTM !== undefined && apiData.dpsTTM !== null ? `$${apiData.dpsTTM.toFixed(2)}` : 'N/A (정보 없음)';
+        if(apiPerSpan) apiPerSpan.textContent = apiData.peTTM !== undefined && apiData.peTTM !== null ? apiData.peTTM.toFixed(2) : 'N/A (정보 없음)';
+        if(apiPbrSpan) apiPbrSpan.textContent = apiData.pbTTM !== undefined && apiData.pbTTM !== null ? apiData.pbTTM.toFixed(2) : 'N/A (정보 없음)';
+        if(apiDividendYieldSpan) apiDividendYieldSpan.textContent = apiData.dividendYieldTTM !== undefined && apiData.dividendYieldTTM !== null ? (apiData.dividendYieldTTM * 100).toFixed(2) : 'N/A (정보 없음)';
+        if(apiRoeSpan) apiRoeSpan.textContent = apiData.roeTTM !== undefined && apiData.roeTTM !== null ? (apiData.roeTTM * 100).toFixed(2) : 'N/A (정보 없음)';
+        
+        const betaForDisplay = (apiData.beta !== undefined && apiData.beta !== null) ? apiData.beta.toFixed(2) : '1.00 (가정)';
+        if(apiBetaSpan) apiBetaSpan.textContent = betaForDisplay;
+        if(dataBetaDisplaySpan) dataBetaDisplaySpan.textContent = betaForDisplay;
+        
+        if(apiPayoutRatioSpan) apiPayoutRatioSpan.textContent = apiData.payoutRatioTTM !== undefined && apiData.payoutRatioTTM !== null ? (apiData.payoutRatioTTM * 100).toFixed(2) : 'N/A (정보 없음)';
 
-    // Polygon.io API 엔드포인트
-    const aggregatesUrl = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/1/day/${fromDate}/${toDate}?adjusted=true&sort=asc&limit=366&apiKey=${API_KEY}`;
-    const tickerDetailsUrl = `https://api.polygon.io/v3/reference/tickers/${ticker}?apiKey=${API_KEY}`;
-    const previousCloseUrl = `https://api.polygon.io/v2/aggs/ticker/${ticker}/prev?adjusted=true&apiKey=${API_KEY}`;
-    // 재무 비율 등 다른 데이터는 FMP 또는 Polygon 유료 플랜에서 가져와야 할 수 있습니다.
-    // 여기서는 Polygon 무료 플랜에서 가능한 데이터에 집중합니다.
+        // 사용자 입력 필드 초기화 (기본값 유지)
+        if(inputPerLow) inputPerLow.value = 20; if(inputPerBase) inputPerBase.value = 25; if(inputPerHigh) inputPerHigh.value = 30;
+        if(inputPbrLow) inputPbrLow.value = 3.0; if(inputPbrBase) inputPbrBase.value = 5.0; if(inputPbrHigh) inputPbrHigh.value = 8.0;
+        if(inputRf) inputRf.value = 3.0; if(inputErp) inputErp.value = 5.0;
+        updateKeInput(apiData.beta); // Beta가 null일 수 있으므로 updateKeInput에서 처리
 
-    try {
-        const [aggregatesResponse, detailsResponse, prevCloseResponse] = await Promise.all([
-            fetch(aggregatesUrl),
-            fetch(tickerDetailsUrl),
-            fetch(prevCloseResponse),
-        ]);
-
-        let errorDetail = '';
-        if (!aggregatesResponse.ok) errorDetail += `과거 주가 데이터 가져오기 실패(${aggregatesResponse.status}). `;
-        if (!detailsResponse.ok) errorDetail += `티커 상세 정보 가져오기 실패(${detailsResponse.status}). `;
-        if (!prevCloseResponse.ok) errorDetail += `전일 종가 정보 가져오기 실패(${prevCloseResponse.status}). `;
-
-
-        if (errorDetail) {
-            console.error('Polygon.io API 오류:', errorDetail);
-            const firstFailedResponse = !aggregatesResponse.ok ? aggregatesResponse : (!detailsResponse.ok ? detailsResponse : prevCloseResponse);
-             const statusCode = (firstFailedResponse.status === 401 || firstFailedResponse.status === 403 || firstFailedResponse.status === 429) ? firstFailedResponse.status : 500;
-            return {
-                statusCode: statusCode,
-                body: JSON.stringify({ error: `${ticker} 정보를 Polygon.io API에서 가져오는데 실패했습니다. ${errorDetail}` }),
-            };
+        let initialG;
+        const keForGCalc = inputKe ? (parseFloat(inputKe.value) / 100) : 0.08;
+        // ROE가 null일 수 있으므로 체크
+        if (apiData.roeTTM && apiData.payoutRatioTTM !== undefined && apiData.payoutRatioTTM !== null && apiData.payoutRatioTTM >= 0 && apiData.payoutRatioTTM <=1 && apiData.roeTTM > 0) {
+            initialG = apiData.roeTTM * (1 - apiData.payoutRatioTTM);
+        } else if (apiData.roeTTM && apiData.roeTTM > 0) {
+            initialG = apiData.roeTTM * 0.5;
+        } else {
+            initialG = 0.05; // 기본 성장률 5%
         }
+        initialG = Math.min(initialG, keForGCalc * 0.85);
+        initialG = Math.max(0.02, initialG);
+        if(inputG) inputG.value = (initialG * 100).toFixed(1);
 
-        const aggregatesData = await aggregatesResponse.json();
-        const detailsData = await detailsResponse.json();
-        const prevCloseData = await prevCloseResponse.json();
+        const userAssumptions = getUserAssumptions();
+        const fairValuesResult = calculateFairValues(apiData, userAssumptions);
+        
+        updateModelDetailsDisplays(apiData, userAssumptions, fairValuesResult.modelOutputs);
+        if(fairValueSummaryP) fairValueSummaryP.textContent = `산출된 모델들의 기본 추정치 평균은 $${fairValuesResult.final.base.toFixed(2)} 입니다. (단, EPS/BPS 등 정보 부족 시 정확도 낮음)`;
+        
+        showResults(); 
 
-        const companyProfile = detailsData.results || {};
-        const historicalPrices = (aggregatesData.results || []).map(item => ({
-            time: formatDate(new Date(item.t)), // Polygon은 타임스탬프(ms)로 제공
-            open: item.o,
-            high: item.h,
-            low: item.l,
-            close: item.c,
-            volume: item.v,
-        }));
-
-        // 현재 주가 (전일 종가 사용)
-        const currentPrice = prevCloseData.results && prevCloseData.results.length > 0 ? prevCloseData.results[0].c : null;
-
-        // Polygon.io 무료 티어에서는 EPS, BPS, ROE, Beta, 배당성향 등의 상세한 TTM 재무비율을 직접 제공하지 않을 수 있습니다.
-        // 이 값들은 FMP API를 계속 사용하거나, Polygon.io 유료 플랜, 또는 다른 소스에서 가져와야 합니다.
-        // 여기서는 해당 값들을 null 또는 기본값으로 처리합니다.
-        const relevantData = {
-            symbol: companyProfile.ticker || ticker.toUpperCase(),
-            companyName: companyProfile.name || 'N/A',
-            price: currentPrice,
-            // 아래 값들은 Polygon.io 무료 버전에서 직접 얻기 어려우므로, FMP API 등을 병행 사용하거나
-            // 지금은 기본값/N/A 처리합니다.
-            beta: null, // 예시: FMP에서 가져오거나 계산 필요
-            eps: null,  // 예시: FMP 또는 다른 소스
-            bps: null,  // 예시: FMP 또는 다른 소스
-            dividendYieldTTM: null,
-            payoutRatioTTM: null,
-            roeTTM: null,
-            dpsTTM: null,
-            peTTM: null,
-            pbTTM: null,
-            historicalData: historicalPrices,
-        };
-
-        if (relevantData.price === null || !relevantData.historicalData || relevantData.historicalData.length === 0) {
-            console.warn(`핵심 주가 또는 과거 주가 데이터가 부족합니다. 티커: ${ticker}.`, {prevCloseData, aggregatesData});
-            // throw new Error() 대신, 클라이언트에서 처리할 수 있도록 isDataSufficient 같은 플래그를 추가할 수도 있습니다.
-        }
-
-        return {
-            statusCode: 200,
-            body: JSON.stringify(relevantData),
-        };
-
-    } catch (error) {
-        console.error('fetchStockData 함수 내 예상치 못한 오류 (Polygon.io):', error);
-        return {
-            statusCode: 500,
-            body: JSON.stringify({ error: '내부 서버 오류가 발생했습니다.', details: error.message }),
-        };
+        setTimeout(() => {
+            createOrUpdatePriceChart(apiData.historicalData, fairValuesResult.final);
+        }, 100); 
     }
-};
+
+    function getUserAssumptions() { /* 이전과 동일 */ }
+    function calculateFairValues(apiData, assumptions) { // EPS, BPS가 null일 경우 모델 계산 안되도록 수정
+        const { perLow, perBase, perHigh, pbrLow, pbrBase, pbrHigh, ke, g } = assumptions;
+        let modelOutputs = { PER: {low:0, base:0, high:0}, PBR: {low:0, base:0, high:0}, Intrinsic: {low:0, base:0, high:0, name: "내재가치 (계산 불가)", formula: ""} };
+
+        if (apiData.eps !== undefined && apiData.eps !== null && apiData.eps > 0) {
+            modelOutputs.PER = {low: apiData.eps * perLow, base: apiData.eps * perBase, high: apiData.eps * perHigh};
+        } else {
+            modelOutputs.PER.name = "PER (EPS 정보 없음)";
+        }
+        if (apiData.bps !== undefined && apiData.bps !== null && apiData.bps > 0) {
+            modelOutputs.PBR = {low: apiData.bps * pbrLow, base: apiData.bps * pbrBase, high: apiData.bps * pbrHigh};
+        } else {
+            modelOutputs.PBR.name = "PBR (BPS 정보 없음)";
+        }
+        
+        if (g < ke && ke > 0) {
+            let intrinsicBase = 0;
+            if (apiData.dpsTTM !== undefined && apiData.dpsTTM !== null && apiData.dpsTTM > 0) {
+                modelOutputs.Intrinsic.name = "DDM (배당할인)";
+                intrinsicBase = (apiData.dpsTTM * (1 + g)) / (ke - g);
+                modelOutputs.Intrinsic.formula = `DPS($${apiData.dpsTTM.toFixed(2)}) * (1 + ${(g*100).toFixed(1)}%) / (${(ke*100).toFixed(1)}% - ${(g*100).toFixed(1)}%)`;
+            } else if (apiData.eps !== undefined && apiData.eps !== null && apiData.eps > 0) {
+                modelOutputs.Intrinsic.name = "EPS 성장 모델";
+                intrinsicBase = (apiData.eps * (1 + g)) / (ke - g);
+                modelOutputs.Intrinsic.formula = `EPS($${apiData.eps.toFixed(2)}) * (1 + ${(g*100).toFixed(1)}%) / (${(ke*100).toFixed(1)}% - ${(g*100).toFixed(1)}%)`;
+            } else {
+                modelOutputs.Intrinsic.name = "내재가치 (DPS/EPS 정보 없음)";
+            }
+
+            if (intrinsicBase > 0 && isFinite(intrinsicBase)) {
+                modelOutputs.Intrinsic.base = intrinsicBase;
+                modelOutputs.Intrinsic.low = intrinsicBase * 0.8;
+                modelOutputs.Intrinsic.high = intrinsicBase * 1.2;
+            } else {
+                 if (modelOutputs.Intrinsic.name === "DDM (배당할인)" || modelOutputs.Intrinsic.name === "EPS 성장 모델") {
+                    modelOutputs.Intrinsic.name += " (산출값 유효X)";
+                 }
+            }
+        }
+        
+        let fvLowSum = 0, fvBaseSum = 0, fvHighSum = 0, validModels = 0;
+        [modelOutputs.PER, modelOutputs.PBR, modelOutputs.Intrinsic].forEach(fv => {
+            if (fv.base > 0 && isFinite(fv.base)) {
+                fvLowSum += fv.low; fvBaseSum += fv.base; fvHighSum += fv.high;
+                validModels++;
+            }
+        });
+
+        let finalFvLow = 0, finalFvBase = 0, finalFvHigh = 0;
+        if (validModels > 0) {
+            finalFvLow = fvLowSum / validModels;
+            finalFvBase = fvBaseSum / validModels;
+            finalFvHigh = fvHighSum / validModels;
+        } else {
+            showError("모든 평가 모델 결과를 산출할 수 없습니다. 제공된 재무 데이터가 부족합니다.");
+        }
+        return { final: {low: finalFvLow, base: finalFvBase, high: finalFvHigh}, modelOutputs };
+    }
+
+    function updateModelDetailsDisplays(apiData, assumptions, modelOutputs) { /* 이전과 동일 */ }
+    function createOrUpdatePriceChart(historicalData, fairValueResults) { /* 이전과 동일 */ }
+    function updateFairValueLinesOnChart(fairValueResults) { /* 이전과 동일 */ }
+    function showLoading(isLoading) { /* 이전과 동일 */ }
+    function showError(message) { /* 이전과 동일 */ }
+    function hideError() { /* 이전과 동일 */ }
+    function showResults() { /* 이전과 동일 */ }
+    function hideResults() { /* 이전과 동일 */ }
+
+}; // window.onload 끝
