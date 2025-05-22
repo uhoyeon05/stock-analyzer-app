@@ -1,39 +1,28 @@
 // script.js
 
-function ensureChartJsIsReady(callback, attempt = 1) {
-    const MAX_ATTEMPTS = 50; 
+function ensureBaseChartLibrariesReady(callback, attempt = 1) { // 함수 이름 변경 및 조건 단순화
+    const MAX_ATTEMPTS = 25; // 재시도 횟수 줄임 (5초)
     const chartReady = typeof window.Chart !== 'undefined' && typeof window.Chart.register === 'function';
     const momentReady = typeof window.moment !== 'undefined';
-    const annotationReady = typeof window.ChartAnnotation !== 'undefined' || (typeof window.Chart !== 'undefined' && typeof window.Chart.Annotation !== 'undefined') ;
 
-    if (chartReady && momentReady && annotationReady) {
-        console.log("All chart libraries (Chart.js, Moment.js, Annotation Plugin) are ready.");
-        try {
-            if (typeof window.ChartAnnotation !== 'undefined') {
-                Chart.register(window.ChartAnnotation);
-            } else if (typeof window.Chart !== 'undefined' && typeof window.Chart.Annotation !== 'undefined') {
-                Chart.register(window.Chart.Annotation);
-            } else {
-                console.warn("Could not find ChartAnnotation object to register. Annotation lines might not be displayed.");
-            }
-        } catch (e) {
-            console.error("Error registering ChartAnnotation plugin:", e);
-        }
+    if (chartReady && momentReady) {
+        console.log("Base libraries (Chart.js, Moment.js) are ready.");
         callback();
     } else {
         if (attempt <= MAX_ATTEMPTS) {
             console.warn(
-                `Chart libraries not ready yet (attempt ${attempt}/${MAX_ATTEMPTS}). Retrying in 200ms. Status:`,
-                { chart: chartReady, moment: momentReady, annotation: annotationReady }
+                `Base chart libraries not ready yet (attempt ${attempt}/${MAX_ATTEMPTS}). Retrying in 200ms. Status:`,
+                { chart: chartReady, moment: momentReady }
             );
-            setTimeout(() => ensureChartJsIsReady(callback, attempt + 1), 200);
+            setTimeout(() => ensureBaseChartLibrariesReady(callback, attempt + 1), 200);
         } else {
-            console.error("Failed to load chart libraries after multiple attempts. Aborting chart initialization.");
+            console.error("Failed to load Chart.js or Moment.js after multiple attempts. Aborting chart initialization.");
             const errDiv = document.getElementById('error-message');
             if (errDiv) {
-                errDiv.textContent = '차트 라이브러리 로드에 실패했습니다. 페이지를 새로고침하거나 인터넷 연결을 확인해주세요.';
+                errDiv.textContent = '차트 기본 라이브러리 로드에 실패했습니다. 페이지를 새로고침하거나 인터넷 연결을 확인해주세요.';
                 errDiv.style.display = 'block';
             }
+            // 차트 컨테이너에 메시지 표시
             const priceChartContainer = document.getElementById('price-chart-wrapper');
             if (priceChartContainer) {
                 const canvasEl = document.getElementById('price-chart-canvas');
@@ -44,7 +33,7 @@ function ensureChartJsIsReady(callback, attempt = 1) {
                     ctx.fillText('차트 라이브러리 로드 실패.', canvasEl.width / 2, canvasEl.height / 2);
                 } else if (priceChartContainer.firstChild && typeof priceChartContainer.firstChild.textContent !== 'undefined') {
                      priceChartContainer.firstChild.textContent = '차트 라이브러리 로드 실패.';
-                } else if (priceChartContainer.textContent === '') { // textContent가 정의되어 있고 비어있을 때만
+                } else if (priceChartContainer.textContent === '') {
                      priceChartContainer.textContent = '차트 라이브러리 로드 실패.';
                 }
             }
@@ -56,7 +45,6 @@ window.onload = () => {
     // --- HTML 요소 가져오기 --- (이전과 동일)
     const tickerInput = document.getElementById('ticker-input');
     const analyzeButton = document.getElementById('analyze-button');
-    // ... (나머지 모든 HTML 요소 가져오기 코드는 이전 답변의 window.onload 내부와 동일하게 유지) ...
     const recalculateButton = document.getElementById('recalculate-button');
     const loadingIndicator = document.getElementById('loading-indicator');
     const errorMessageDiv = document.getElementById('error-message');
@@ -115,7 +103,7 @@ window.onload = () => {
 
     if (analyzeButton) {
         analyzeButton.addEventListener('click', () => {
-            ensureChartJsIsReady(async () => { 
+            ensureBaseChartLibrariesReady(async () => { // 함수 이름 변경
                 const ticker = tickerInput.value.trim().toUpperCase();
                 if (!ticker) { showError('티커를 입력해주세요.'); return; }
                 showLoading(true); hideError(); hideResults();
@@ -127,9 +115,8 @@ window.onload = () => {
                     }
                     currentStockData = await response.json();
                     if (currentStockData.error) throw new Error(currentStockData.error);
-                    if (currentStockData.price === undefined || currentStockData.price === null || 
-                        !currentStockData.historicalData || currentStockData.historicalData.length === 0) {
-                         throw new Error(`주가 또는 과거 주가 데이터가 부족하여 분석할 수 없습니다. (티커: ${ticker})`);
+                    if (!currentStockData.price || currentStockData.eps === undefined || currentStockData.bps === undefined || !currentStockData.historicalData || currentStockData.historicalData.length === 0) {
+                         throw new Error(`핵심 재무 또는 과거 주가 데이터가 부족하여 분석할 수 없습니다. (티커: ${ticker})`);
                     }
                     initializePageWithData(currentStockData);
                 } catch (error) {
@@ -141,13 +128,23 @@ window.onload = () => {
         });
     } else { console.error("Analyze button not found."); }
 
-    if (recalculateButton) { /* ... 이전과 동일 ... */ }
+    if (recalculateButton) {
+        recalculateButton.addEventListener('click', () => {
+            ensureBaseChartLibrariesReady(() => { // 함수 이름 변경
+                if (!currentStockData) { showError('먼저 주식을 분석해주세요.'); return; }
+                hideError();
+                const userAssumptions = getUserAssumptions();
+                const fairValuesResult = calculateFairValues(currentStockData, userAssumptions);
+                createOrUpdatePriceChart(currentStockData.historicalData, fairValuesResult.final);
+                updateModelDetailsDisplays(currentStockData, userAssumptions, fairValuesResult.modelOutputs);
+            });
+        });
+    } else { console.error("Recalculate button not found."); }
+
     if (inputRf && inputErp) { /* ... 이전과 동일 ... */ }
     function updateKeInput(betaValue) { /* ... 이전과 동일 ... */ }
-    
-    function initializePageWithData(apiData) {
+    function initializePageWithData(apiData) { /* ... 이전과 거의 동일 ... */
         if (stockNameTitle) stockNameTitle.textContent = `${apiData.companyName || apiData.symbol} (${apiData.symbol || 'N/A'})`;
-        // ... (나머지 initializePageWithData 함수 내용은 이전 답변과 동일, 아래 calculateFairValues 호출 부분만 확인)
         if (currentPriceSpan) currentPriceSpan.textContent = apiData.price !== undefined && apiData.price !== null ? apiData.price.toFixed(2) : 'N/A';
         if (dataDateSpan) dataDateSpan.textContent = 'API 제공 기준';
 
@@ -182,117 +179,133 @@ window.onload = () => {
         if(inputG) inputG.value = (initialG * 100).toFixed(1);
 
         const userAssumptions = getUserAssumptions();
-        const fairValuesResult = calculateFairValues(apiData, userAssumptions); // 이 함수의 반환값 확인
+        const fairValuesResult = calculateFairValues(apiData, userAssumptions);
         
-        // ★★★ fairValuesResult가 유효한지 확인 후 modelOutputs 접근 ★★★
-        if (fairValuesResult && fairValuesResult.modelOutputs) {
-            updateModelDetailsDisplays(apiData, userAssumptions, fairValuesResult.modelOutputs);
-            if(fairValueSummaryP) fairValueSummaryP.textContent = `산출된 모델들의 기본 추정치 평균은 $${fairValuesResult.final.base.toFixed(2)} 입니다. (단, EPS/BPS 등 정보 부족 시 정확도 낮음)`;
-        } else {
-            // fairValuesResult가 유효하지 않은 경우 (예: 모든 모델 계산 불가)
-            // 이미 calculateFairValues에서 showError를 호출했을 수 있으므로, 추가적인 오류 표시는 선택적
-            if(fairValueSummaryP) fairValueSummaryP.textContent = "적정주가 범위를 산출할 수 없습니다.";
-            // 모델별 상세 정보 영역도 비우거나 "계산 불가" 메시지 표시
-            if(modelEpsPerSpan) modelEpsPerSpan.textContent = 'N/A';
-            if(perValueRangeSpan) perValueRangeSpan.textContent = 'N/A';
-            // ... 다른 모델 상세 정보도 유사하게 처리 ...
-        }
+        updateModelDetailsDisplays(apiData, userAssumptions, fairValuesResult.modelOutputs);
+        if(fairValueSummaryP) fairValueSummaryP.textContent = `산출된 모델들의 기본 추정치 평균은 $${fairValuesResult.final.base.toFixed(2)} 입니다. (단, EPS/BPS 등 정보 부족 시 정확도 낮음)`;
         
         showResults(); 
 
         setTimeout(() => {
-            // ★★★ fairValuesResult.final이 유효한지 확인 후 차트 함수 호출 ★★★
-            if (fairValuesResult && fairValuesResult.final) {
-                createOrUpdatePriceChart(apiData.historicalData, fairValuesResult.final);
-            } else {
-                 // 차트 데이터가 없을 때 처리 (예: 차트 컨테이너에 메시지 표시)
-                 const chartContainerEl = document.getElementById('price-chart-wrapper');
-                 const canvasEl = document.getElementById('price-chart-canvas');
-                 if (chartContainerEl && canvasEl && canvasEl.getContext('2d')) {
-                    const ctx = canvasEl.getContext('2d');
-                    ctx.clearRect(0,0, canvasEl.width, canvasEl.height);
-                    ctx.font = "16px Arial"; ctx.textAlign = "center";
-                    ctx.fillText("적정주가 계산 실패로 차트에 선을 표시할 수 없습니다.", canvasEl.width/2, canvasEl.height/2);
-                 }
-            }
+            createOrUpdatePriceChart(apiData.historicalData, fairValuesResult.final);
         }, 100); 
     }
 
     function getUserAssumptions() { /* ... 이전과 동일 ... */ }
-
-    function calculateFairValues(apiData, assumptions) {
-        const { perLow, perBase, perHigh, pbrLow, pbrBase, pbrHigh, ke, g } = assumptions;
-        // ★★★ 기본 반환 구조를 항상 유지하도록 초기화 ★★★
-        let modelOutputs = { 
-            PER: {low:0, base:0, high:0, name: "PER (정보 없음)"}, 
-            PBR: {low:0, base:0, high:0, name: "PBR (정보 없음)"}, 
-            Intrinsic: {low:0, base:0, high:0, name: "내재가치 (계산 불가)", formula: ""} 
-        };
-        let finalResult = {low: 0, base: 0, high: 0};
-
-
-        if (apiData.eps !== undefined && apiData.eps !== null && apiData.eps > 0) {
-            modelOutputs.PER = {low: apiData.eps * perLow, base: apiData.eps * perBase, high: apiData.eps * perHigh, name: "PER"};
-        }
-        if (apiData.bps !== undefined && apiData.bps !== null && apiData.bps > 0) {
-            modelOutputs.PBR = {low: apiData.bps * pbrLow, base: apiData.bps * pbrBase, high: apiData.bps * pbrHigh, name: "PBR"};
-        }
-        
-        if (g < ke && ke > 0) {
-            let intrinsicBase = 0;
-            if (apiData.dpsTTM !== undefined && apiData.dpsTTM !== null && apiData.dpsTTM > 0) {
-                modelOutputs.Intrinsic.name = "DDM (배당할인)";
-                intrinsicBase = (apiData.dpsTTM * (1 + g)) / (ke - g);
-                modelOutputs.Intrinsic.formula = `DPS($${apiData.dpsTTM.toFixed(2)}) * (1 + ${(g*100).toFixed(1)}%) / (${(ke*100).toFixed(1)}% - ${(g*100).toFixed(1)}%)`;
-            } else if (apiData.eps !== undefined && apiData.eps !== null && apiData.eps > 0) {
-                modelOutputs.Intrinsic.name = "EPS 성장 모델";
-                intrinsicBase = (apiData.eps * (1 + g)) / (ke - g);
-                modelOutputs.Intrinsic.formula = `EPS($${apiData.eps.toFixed(2)}) * (1 + ${(g*100).toFixed(1)}%) / (${(ke*100).toFixed(1)}% - ${(g*100).toFixed(1)}%)`;
-            } else {
-                modelOutputs.Intrinsic.name = "내재가치 (DPS/EPS 정보 없음)";
-            }
-
-            if (intrinsicBase > 0 && isFinite(intrinsicBase)) {
-                modelOutputs.Intrinsic.base = intrinsicBase;
-                modelOutputs.Intrinsic.low = intrinsicBase * 0.8;
-                modelOutputs.Intrinsic.high = intrinsicBase * 1.2;
-            } else {
-                 if (modelOutputs.Intrinsic.name === "DDM (배당할인)" || modelOutputs.Intrinsic.name === "EPS 성장 모델") {
-                    modelOutputs.Intrinsic.name += " (산출값 유효X)";
-                 }
-            }
-        }
-        
-        let fvLowSum = 0, fvBaseSum = 0, fvHighSum = 0, validModels = 0;
-        [modelOutputs.PER, modelOutputs.PBR, modelOutputs.Intrinsic].forEach(fv => {
-            if (fv.base > 0 && isFinite(fv.base)) {
-                if (fv.name && !fv.name.includes("정보 없음") && !fv.name.includes("유효X") && !fv.name.includes("계산 불가")) {
-                    fvLowSum += fv.low; fvBaseSum += fv.base; fvHighSum += fv.high;
-                    validModels++;
-                }
-            }
-        });
-
-        if (validModels > 0) {
-            finalResult = {
-                low: fvLowSum / validModels,
-                base: fvBaseSum / validModels,
-                high: fvHighSum / validModels
-            };
-        } else {
-            showError("모든 평가 모델 결과를 산출할 수 없습니다. 제공된 재무 데이터가 부족합니다.");
-            // finalResult는 이미 {low: 0, base: 0, high: 0}으로 초기화되어 있음
-        }
-        return { final: finalResult, modelOutputs }; // 항상 객체 반환
-    }
-
+    function calculateFairValues(apiData, assumptions) { /* ... 이전과 동일 ... */ }
     function updateModelDetailsDisplays(apiData, assumptions, modelOutputs) { /* ... 이전과 동일 ... */ }
-    function createOrUpdatePriceChart(historicalData, fairValueResults) { /* ... 이전과 동일 ... */ }
-    function updateFairValueLinesOnChart(fairValueResults) { /* ... 이전과 동일 ... */ }
-    function showLoading(isLoading) { /* ... 이전과 동일 ... */ }
-    function showError(message) { /* ... 이전과 동일 ... */ }
-    function hideError() { /* ... 이전과 동일 ... */ }
-    function showResults() { /* ... 이전과 동일 ... */ }
-    function hideResults() { /* ... 이전과 동일 ... */ }
+
+    function createOrUpdatePriceChart(historicalData, fairValueResults) {
+        const chartContainerEl = document.getElementById('price-chart-wrapper'); 
+        const canvasEl = document.getElementById('price-chart-canvas');
+
+        if (!chartContainerEl || !canvasEl) {
+            console.error("CRITICAL: #price-chart-wrapper 또는 #price-chart-canvas HTML 요소를 찾을 수 없습니다!");
+            return;
+        }
+        
+        if (priceChartInstance) { 
+            priceChartInstance.destroy();
+            priceChartInstance = null;
+        }
+
+        if (!historicalData || historicalData.length === 0) {
+            // (이하 데이터 없을 때 메시지 표시는 이전과 동일)
+            return;
+        }
+        
+        // ★★★ Annotation 플러그인 등록 시도 (Chart.js와 Annotation 객체가 모두 있을 때) ★★★
+        let annotationPluginRegistered = false;
+        if (typeof window.Chart !== 'undefined' && typeof window.Chart.register === 'function') {
+            if (typeof window.ChartAnnotation !== 'undefined') {
+                try { 
+                    Chart.register(window.ChartAnnotation);
+                    annotationPluginRegistered = true;
+                    // console.log("ChartAnnotation (window.ChartAnnotation) registered in createOrUpdatePriceChart.");
+                } catch(e) { console.error("Error registering window.ChartAnnotation:", e); }
+            } else if (typeof window.Chart.Annotation !== 'undefined') { // 대문자 A 확인
+                 try { 
+                    Chart.register(window.Chart.Annotation);
+                    annotationPluginRegistered = true;
+                    // console.log("ChartAnnotation (Chart.Annotation) registered in createOrUpdatePriceChart.");
+                 } catch(e) { console.error("Error registering Chart.Annotation:", e); }
+            }
+        }
+        if (!annotationPluginRegistered) {
+            console.warn("Annotation plugin could not be registered. Fair value lines will not be displayed.");
+        }
+        // ★★★ Annotation 플러그인 등록 시도 끝 ★★★
+
+
+        const containerWidth = chartContainerEl.clientWidth;
+        const containerHeight = chartContainerEl.clientHeight;
+
+        if (containerWidth <= 0 || containerHeight <= 0) { /* ... 이전과 동일 ... */ return; }
+        
+        const labels = historicalData.map(d => d.time);
+        const closePrices = historicalData.map(d => d.close);
+        const volumes = historicalData.map(d => d.volume);
+
+        const annotations = {};
+        if (annotationPluginRegistered) { // 플러그인이 등록되었을 때만 annotation 설정
+            if (fairValueResults.base > 0 && isFinite(fairValueResults.base)) {
+                annotations['fairValueBaseLine'] = {
+                    type: 'line', yMin: fairValueResults.base, yMax: fairValueResults.base,
+                    borderColor: 'rgba(0, 123, 255, 0.8)', borderWidth: 2,
+                    label: { content: `기본: $${fairValueResults.base.toFixed(2)}`, enabled: true, position: 'end', backgroundColor: 'rgba(0, 123, 255, 0.8)', color: 'white', font: { weight: 'bold' } }
+                };
+            }
+            // ... (최저, 최고 적정주가선 annotation 추가 로직도 if (annotationPluginRegistered) 안에 두거나, 여기서 처리)
+            if (fairValueResults.low > 0 && isFinite(fairValueResults.low)) {
+                annotations['fairValueLowLine'] = { /* ... 이전과 동일 ... */ };
+            }
+            if (fairValueResults.high > 0 && isFinite(fairValueResults.high)) {
+                annotations['fairValueHighLine'] = { /* ... 이전과 동일 ... */ };
+            }
+        }
+
+
+        const data = { /* ... 이전과 동일 ... */ };
+        const config = { 
+            data: data,
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false, },
+                stacked: false,
+                plugins: {
+                    title: { display: true, text: '주가 및 거래량 (1년)' },
+                    tooltip: { /* ... 이전과 동일 ... */ },
+                    // annotation 옵션은 annotationPluginRegistered 상태에 따라 조건부로 추가
+                    ...(annotationPluginRegistered && { annotation: { annotations: annotations } })
+                },
+                scales: { /* ... 이전과 동일 ... */ }
+            }
+        };
+        
+        if (canvasEl) {
+            try {
+                priceChartInstance = new Chart(canvasEl, config);
+            } catch (e) { /* ... 이전과 동일 ... */ }
+        } else {
+            console.error("priceChartCanvas is null, cannot create chart.");
+        }
+    }
+    
+    function updateFairValueLinesOnChart(fairValueResults) {
+        if (!priceChartInstance || !priceChartInstance.options || !priceChartInstance.options.plugins || !priceChartInstance.options.plugins.annotation) {
+            return;
+        }
+        const newAnnotations = {};
+        // ... (annotation 객체 구성 로직은 이전과 동일) ...
+        priceChartInstance.options.plugins.annotation.annotations = newAnnotations;
+        priceChartInstance.update();
+    }
+    
+    // --- 나머지 유틸리티 함수 (showLoading 등)는 이전과 동일 ---
+    function showLoading(isLoading) { if(loadingIndicator) loadingIndicator.style.display = isLoading ? 'block' : 'none'; }
+    function showError(message) { if(errorMessageDiv) {errorMessageDiv.textContent = message; errorMessageDiv.style.display = 'block';} }
+    function hideError() { if(errorMessageDiv) errorMessageDiv.style.display = 'none'; }
+    function showResults() { if(resultsArea) resultsArea.style.display = 'block'; }
+    function hideResults() { if(resultsArea) resultsArea.style.display = 'none'; }
 
 }; // window.onload 끝
