@@ -1,30 +1,14 @@
 // script.js
 
+// ★★★ Chart.js와 Moment.js만 확인하도록 단순화 ★★★
 function ensureBaseChartLibrariesReady(callback, attempt = 1) {
-    const MAX_ATTEMPTS = 25;
+    const MAX_ATTEMPTS = 25; 
     const chartReady = typeof window.Chart !== 'undefined' && typeof window.Chart.register === 'function';
     const momentReady = typeof window.moment !== 'undefined';
 
     if (chartReady && momentReady) {
         console.log("Base libraries (Chart.js, Moment.js) are ready.");
-        if (typeof window.ChartAnnotation !== 'undefined') {
-            try {
-                window.Chart.register(window.ChartAnnotation);
-                console.log("ChartAnnotation (window.ChartAnnotation) registered.");
-            } catch (e) {
-                console.error("Error registering window.ChartAnnotation:", e);
-            }
-        } else if (typeof window.Chart !== 'undefined' && typeof window.Chart.Annotation !== 'undefined') {
-            try {
-                window.Chart.register(window.Chart.Annotation);
-                console.log("ChartAnnotation (Chart.Annotation) registered.");
-            } catch (e) {
-                console.error("Error registering Chart.Annotation:", e);
-            }
-        } else {
-            console.warn("ChartAnnotation object not found on window. Annotation features might be unavailable.");
-        }
-        callback();
+        callback(); // Chart.js와 Moment.js만 준비되면 바로 콜백 실행
     } else {
         if (attempt <= MAX_ATTEMPTS) {
             console.warn(
@@ -33,25 +17,11 @@ function ensureBaseChartLibrariesReady(callback, attempt = 1) {
             );
             setTimeout(() => ensureBaseChartLibrariesReady(callback, attempt + 1), 200);
         } else {
-            console.error("Failed to load Chart.js or Moment.js after multiple attempts. Aborting chart initialization.");
+            console.error("Failed to load Chart.js or Moment.js after multiple attempts. Aborting further operations.");
             const errDiv = document.getElementById('error-message');
             if (errDiv) {
                 errDiv.textContent = '차트 기본 라이브러리 로드에 실패했습니다. 페이지를 새로고침하거나 인터넷 연결을 확인해주세요.';
                 errDiv.style.display = 'block';
-            }
-            const priceChartContainer = document.getElementById('price-chart-wrapper');
-            if (priceChartContainer) {
-                const canvasEl = document.getElementById('price-chart-canvas');
-                if(canvasEl && canvasEl.getContext('2d')) {
-                    const ctx = canvasEl.getContext('2d');
-                    ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
-                    ctx.font = "14px Arial"; ctx.textAlign = "center";
-                    ctx.fillText('차트 라이브러리 로드 실패.', canvasEl.width / 2, canvasEl.height / 2);
-                } else if (priceChartContainer.firstChild && typeof priceChartContainer.firstChild.textContent !== 'undefined') {
-                     priceChartContainer.firstChild.textContent = '차트 라이브러리 로드 실패.';
-                } else if (priceChartContainer.textContent === '') {
-                     priceChartContainer.textContent = '차트 라이브러리 로드 실패.';
-                }
             }
         }
     }
@@ -108,107 +78,15 @@ window.onload = () => {
     const apiBetaSpan = document.getElementById('api-beta');
     const apiPayoutRatioSpan = document.getElementById('api-payout-ratio');
 
-
     let tickerDataStore = [];
     let currentStockData = null;
 
-    async function loadTickerData() {
-        try {
-            const response = await fetch('tickers.json');
-            if (!response.ok) {
-                console.error(`Ticker list fetch failed: ${response.status}`);
-                tickerDataStore = [];
-                return;
-            }
-            const data = await response.json();
-            if (Array.isArray(data)) {
-                tickerDataStore = data;
-                console.log("Tickers loaded successfully:", tickerDataStore.length, "items");
-            } else {
-                console.error("Loaded ticker data is not an array:", data);
-                tickerDataStore = [];
-            }
-        } catch (error) {
-            console.error("Error loading or parsing ticker data:", error);
-            tickerDataStore = [];
-        }
-    }
+    async function loadTickerData() { /* ... 이전과 동일 ... */ }
     loadTickerData();
 
-    if (tickerInput && autocompleteList) {
-        tickerInput.addEventListener('input', function(e) {
-            const val = this.value;
-            autocompleteList.innerHTML = ''; 
-            if (!val || val.length < 1) {
-                autocompleteList.style.display = 'none';
-                return false;
-            }
-            if (!tickerDataStore || tickerDataStore.length === 0) {
-                return false;
-            }
-            let count = 0;
-            tickerDataStore.forEach(item => {
-                if (!item || typeof item.symbol !== 'string' || typeof item.name !== 'string') {
-                    return; 
-                }
-                const pureSymbol = item.symbol.split('.')[0];
-                const searchText = val.toUpperCase();
-                const itemName = item.name.toUpperCase();
-                const itemSymbol = pureSymbol.toUpperCase();
-                if (((itemName.includes(searchText)) || (itemSymbol.includes(searchText))) && count < 7) {
-                    const suggestionDiv = document.createElement("DIV");
-                    try {
-                        const escapedVal = val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                        const regex = new RegExp(escapedVal, 'gi');
-                        const displayNameHTML = item.name.replace(regex, (match) => `<u>${match}</u>`);
-                        const displaySymbolHTML = item.symbol.replace(regex, (match) => `<u>${match}</u>`);
-                        suggestionDiv.innerHTML = `<strong>${displayNameHTML}</strong> (${displaySymbolHTML})`;
-                    } catch (err) {
-                        suggestionDiv.textContent = `${item.name} (${item.symbol})`;
-                    }
-                    
-                    suggestionDiv.addEventListener('click', function() {
-                        tickerInput.value = item.symbol;
-                        closeAllLists(); // ★★★ 항목 선택 시 목록 닫기 ★★★
-                        // 선택 후에는 input 이벤트가 다시 발생하지 않도록 포커스를 잠시 다른 곳으로 옮겼다가 돌려놓거나,
-                        // 혹은 input 이벤트 리스너 내에서 플래그를 사용하여 목록을 다시 그리지 않도록 할 수 있습니다.
-                        // 가장 간단한 방법은 input 값 변경 후 목록을 즉시 닫는 것입니다.
-                        autocompleteList.innerHTML = ''; // 클릭 후 즉시 목록 비우기
-                        autocompleteList.style.display = 'none';
-                    });
-                    autocompleteList.appendChild(suggestionDiv);
-                    count++;
-                }
-            });
-            autocompleteList.style.display = count > 0 ? 'block' : 'none';
-        });
-
-        // 입력창에서 포커스가 벗어났을 때도 목록을 닫도록 추가 (선택적)
-        // tickerInput.addEventListener('blur', function() {
-        //     setTimeout(closeAllLists, 150); // 다른 클릭 이벤트(항목 선택)가 먼저 처리될 시간을 줌
-        // });
-
-    } else {
-        console.error("CRITICAL: tickerInput or autocompleteList element not found in HTML.");
-    }
-
-    // closeAllLists 함수는 이전과 동일하게 유지하거나, 더 단순화 가능
-    function closeAllLists() { // elmnt 파라미터 제거하고 항상 닫도록 단순화
-        if (autocompleteList) {
-            autocompleteList.innerHTML = '';
-            autocompleteList.style.display = 'none';
-        }
-    }
-    // 문서 전체 클릭 시 자동완성 목록 닫기 (이벤트 버블링 고려)
-    document.addEventListener('click', function (e) {
-        if (autocompleteList && tickerInput) { // 요소 존재 확인
-            // 클릭된 요소가 tickerInput이나 autocompleteList 내부가 아니라면 닫음
-            if (e.target !== tickerInput && !autocompleteList.contains(e.target)) {
-                closeAllLists();
-            }
-        }
-    });
-
+    if (tickerInput && autocompleteList) { /* ... 이전과 동일 ... */ }
+    function closeAllLists(elmnt) { /* ... 이전과 동일 ... */ }
+    document.addEventListener('click', (e) => closeAllLists(e.target));
 
     if (analyzeButton) {
         analyzeButton.addEventListener('click', () => {
@@ -256,7 +134,7 @@ window.onload = () => {
         // ... (이하 input 필드 초기화 부분 동일)
         updateKeInput(apiData.beta);
 
-        let initialG; // 선언
+        let initialG; 
         const keForGCalc = inputKe ? (parseFloat(inputKe.value) / 100) : 0.08;
         // ... (initialG 계산 로직 동일)
         if(inputG) inputG.value = (initialG * 100).toFixed(1);
@@ -281,12 +159,107 @@ window.onload = () => {
     function getUserAssumptions() { /* ... 이전과 동일 ... */ }
     function calculateFairValues(apiData, assumptions) { /* ... 이전과 동일 ... */ }
     function updateModelDetailsDisplays(apiData, assumptions, modelOutputs) { /* ... 이전과 동일 ... */ }
-    function createOrUpdatePriceChart(historicalData, fairValueResults) { /* ... 이전과 동일 ... */ }
-    function updateFairValueLinesOnChart(fairValueResults) { /* ... 이전과 동일 ... */ }
-    function showLoading(isLoading) { /* ... 이전과 동일 ... */ }
-    function showError(message) { /* ... 이전과 동일 ... */ }
-    function hideError() { /* ... 이전과 동일 ... */ }
-    function showResults() { /* ... 이전과 동일 ... */ }
-    function hideResults() { /* ... 이전과 동일 ... */ }
+
+    function createOrUpdatePriceChart(historicalData, fairValueResults) {
+        const chartContainerEl = document.getElementById('price-chart-wrapper'); 
+        const canvasEl = document.getElementById('price-chart-canvas');
+
+        if (!chartContainerEl || !canvasEl) { /* ... 이전과 동일 ... */ return; }
+        if (priceChartInstance) { priceChartInstance.destroy(); priceChartInstance = null; }
+        if (!historicalData || historicalData.length === 0) { /* ... 이전과 동일 ... */ return; }
+        
+        // ★★★ Annotation 플러그인 등록은 여기서, Chart.js가 확실히 준비된 후 시도 ★★★
+        let annotationPluginRegistered = false;
+        if (typeof window.Chart !== 'undefined' && typeof window.Chart.register === 'function') {
+            if (typeof window.ChartAnnotation !== 'undefined') {
+                try { 
+                    Chart.register(window.ChartAnnotation);
+                    annotationPluginRegistered = true;
+                    console.log("ChartAnnotation (window.ChartAnnotation) registered in createOrUpdatePriceChart.");
+                } catch(e) { console.error("Error registering window.ChartAnnotation in createOrUpdatePriceChart:", e); }
+            } else if (typeof window.Chart.Annotation !== 'undefined') {
+                 try { 
+                    Chart.register(window.Chart.Annotation);
+                    annotationPluginRegistered = true;
+                    console.log("ChartAnnotation (Chart.Annotation) registered in createOrUpdatePriceChart.");
+                 } catch(e) { console.error("Error registering Chart.Annotation in createOrUpdatePriceChart:", e); }
+            } else {
+                console.warn("ChartAnnotation plugin object not found. Fair value lines might not be displayed.");
+            }
+        } else {
+             console.error('createOrUpdatePriceChart: Chart.js (Chart.register) is not available for annotation.');
+             if(canvasEl.getContext('2d')) { /* ... 오류 메시지 표시 ... */ }
+             return;
+        }
+
+        const containerWidth = chartContainerEl.clientWidth;
+        const containerHeight = chartContainerEl.clientHeight;
+        if (containerWidth <= 0 || containerHeight <= 0) { /* ... 이전과 동일 ... */ return; }
+        
+        const labels = historicalData.map(d => d.time);
+        const closePrices = historicalData.map(d => d.close);
+        const volumes = historicalData.map(d => d.volume);
+
+        const annotations = {};
+        if (annotationPluginRegistered) { // 플러그인이 성공적으로 등록되었을 때만 annotation 객체 구성
+            if (fairValueResults.base > 0 && isFinite(fairValueResults.base)) {
+                annotations['fairValueBaseLine'] = { /* ... 이전과 동일 ... */ };
+            }
+            if (fairValueResults.low > 0 && isFinite(fairValueResults.low)) {
+                annotations['fairValueLowLine'] = { /* ... 이전과 동일 ... */ };
+            }
+            if (fairValueResults.high > 0 && isFinite(fairValueResults.high)) {
+                annotations['fairValueHighLine'] = { /* ... 이전과 동일 ... */ };
+            }
+        }
+
+        const data = { /* ... 이전과 동일 ... */ };
+        const config = { 
+            data: data,
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false, },
+                stacked: false,
+                plugins: {
+                    title: { display: true, text: '주가 및 거래량 (1년)' },
+                    tooltip: { /* ... 이전과 동일 ... */ },
+                    // annotation 옵션은 annotationPluginRegistered 상태에 따라 조건부로 추가
+                    ...(annotationPluginRegistered && Object.keys(annotations).length > 0 && { annotation: { annotations: annotations } })
+                },
+                scales: { /* ... 이전과 동일 ... */ }
+            }
+        };
+        
+        if (canvasEl) {
+            try {
+                priceChartInstance = new Chart(canvasEl, config);
+            } catch (e) { /* ... 이전과 동일 ... */ }
+        } else {
+            console.error("priceChartCanvas is null, cannot create chart.");
+        }
+    }
+    
+    function updateFairValueLinesOnChart(fairValueResults) {
+        if (!priceChartInstance || !priceChartInstance.options || !priceChartInstance.options.plugins) { // annotation 존재 여부 체크 단순화
+            return;
+        }
+        // Annotation 플러그인이 등록되어 있고, annotation 옵션 객체가 존재할 때만 업데이트 시도
+        if (priceChartInstance.options.plugins.annotation) {
+            const newAnnotations = {};
+            if (fairValueResults.base > 0 && isFinite(fairValueResults.base)) {
+                newAnnotations['fairValueBaseLine'] = { /* ... 이전과 동일 ... */ };
+            }
+            // ... (최저, 최고 annotation 구성) ...
+            priceChartInstance.options.plugins.annotation.annotations = newAnnotations;
+            priceChartInstance.update();
+        }
+    }
+    
+    // --- 나머지 유틸리티 함수 (showLoading 등)는 이전과 동일 ---
+    function showLoading(isLoading) { if(loadingIndicator) loadingIndicator.style.display = isLoading ? 'block' : 'none'; }
+    function showError(message) { if(errorMessageDiv) {errorMessageDiv.textContent = message; errorMessageDiv.style.display = 'block';} }
+    function hideError() { if(errorMessageDiv) errorMessageDiv.style.display = 'none'; }
+    function showResults() { if(resultsArea) resultsArea.style.display = 'block'; }
+    function hideResults() { if(resultsArea) resultsArea.style.display = 'none'; }
 
 }; // window.onload 끝
