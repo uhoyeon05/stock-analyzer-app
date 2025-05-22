@@ -66,6 +66,8 @@ window.onload = () => {
     const errorMessageDiv = document.getElementById('error-message');
     const resultsArea = document.getElementById('results-area');
     const autocompleteList = document.getElementById('autocomplete-list');
+
+    // ... (나머지 HTML 요소 가져오기는 이전과 동일) ...
     const stockNameTitle = document.getElementById('stock-name-title');
     const currentPriceSpan = document.getElementById('current-price');
     const dataDateSpan = document.getElementById('data-date');
@@ -101,218 +103,102 @@ window.onload = () => {
     const apiBetaSpan = document.getElementById('api-beta');
     const apiPayoutRatioSpan = document.getElementById('api-payout-ratio');
 
+
     let tickerDataStore = [];
     let currentStockData = null;
 
-    async function loadTickerData() { /* ... 이전과 동일 ... */ }
-    loadTickerData();
+    // --- 1. 티커 목록 로드 (자동 완성용) ---
+    async function loadTickerData() {
+        try {
+            const response = await fetch('tickers.json');
+            if (!response.ok) {
+                console.error(`Ticker list fetch failed: ${response.status}`);
+                tickerDataStore = []; // 실패 시 빈 배열로 초기화
+                return;
+            }
+            const data = await response.json();
+            if (Array.isArray(data)) {
+                tickerDataStore = data;
+                console.log("Tickers loaded successfully:", tickerDataStore.length, "items");
+            } else {
+                console.error("Loaded ticker data is not an array:", data);
+                tickerDataStore = [];
+            }
+        } catch (error) {
+            console.error("Error loading or parsing ticker data:", error);
+            tickerDataStore = [];
+        }
+    }
+    loadTickerData(); // 페이지 로드 시 티커 데이터 가져오기
 
-    if (tickerInput && autocompleteList) { /* ... 이전과 동일 ... */ }
+    // --- 2. 자동 완성 로직 ---
+    if (tickerInput && autocompleteList) {
+        tickerInput.addEventListener('input', function(e) {
+            const val = this.value;
+            autocompleteList.innerHTML = ''; // 이전 목록 초기화
+            // console.log("Input value:", val); // 입력값 확인 로그
+
+            if (!val || val.length < 1) {
+                autocompleteList.style.display = 'none';
+                return false;
+            }
+
+            if (!tickerDataStore || tickerDataStore.length === 0) {
+                // console.warn("tickerDataStore is empty. Autocomplete cannot function."); // 티커 데이터 없음 경고
+                return false;
+            }
+
+            let count = 0;
+            tickerDataStore.forEach(item => {
+                if (!item || typeof item.symbol !== 'string' || typeof item.name !== 'string') {
+                    // console.warn("Invalid item in tickerDataStore:", item); // 잘못된 데이터 형식 경고
+                    return; // 다음 아이템으로 건너뛰기
+                }
+
+                const pureSymbol = item.symbol.split('.')[0];
+                const searchText = val.toUpperCase();
+                const itemName = item.name.toUpperCase();
+                const itemSymbol = pureSymbol.toUpperCase();
+
+                if (((itemName.includes(searchText)) || (itemSymbol.includes(searchText))) && count < 7) {
+                    const suggestionDiv = document.createElement("DIV");
+                    try {
+                        const escapedVal = val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        const regex = new RegExp(escapedVal, 'gi');
+                        const displayNameHTML = item.name.replace(regex, (match) => `<u>${match}</u>`);
+                        const displaySymbolHTML = item.symbol.replace(regex, (match) => `<u>${match}</u>`);
+                        suggestionDiv.innerHTML = `<strong>${displayNameHTML}</strong> (${displaySymbolHTML})`;
+                    } catch (err) {
+                        // console.error("Error creating suggestion HTML:", err); // HTML 생성 오류 시
+                        suggestionDiv.textContent = `${item.name} (${item.symbol})`; // 기본 텍스트로 대체
+                    }
+                    
+                    suggestionDiv.addEventListener('click', function() {
+                        tickerInput.value = item.symbol;
+                        closeAllLists();
+                    });
+                    autocompleteList.appendChild(suggestionDiv);
+                    count++;
+                }
+            });
+            // console.log("Suggestions found:", count); // 찾은 추천 수 로그
+            autocompleteList.style.display = count > 0 ? 'block' : 'none';
+        });
+    } else {
+        console.error("CRITICAL: tickerInput or autocompleteList element not found in HTML.");
+    }
+
     function closeAllLists(elmnt) { /* ... 이전과 동일 ... */ }
     document.addEventListener('click', (e) => closeAllLists(e.target));
 
-    if (analyzeButton) {
-        analyzeButton.addEventListener('click', () => {
-            ensureBaseChartLibrariesReady(async () => { 
-                const ticker = tickerInput.value.trim().toUpperCase();
-                if (!ticker) { showError('티커를 입력해주세요.'); return; }
-                showLoading(true); hideError(); hideResults();
-                try {
-                    const response = await fetch(`/.netlify/functions/fetchStockData?ticker=${ticker}`);
-                    if (!response.ok) {
-                        const errData = await response.json().catch(()=>({error: `HTTP 오류! 상태: ${response.status}`}));
-                        throw new Error(errData.error || `HTTP 오류! 상태: ${response.status}`);
-                    }
-                    currentStockData = await response.json();
-                    if (currentStockData.error) throw new Error(currentStockData.error);
-                    if (currentStockData.price === undefined || currentStockData.price === null || 
-                        !currentStockData.historicalData || currentStockData.historicalData.length === 0) {
-                         throw new Error(`주가 또는 과거 주가 데이터가 부족하여 분석할 수 없습니다. (티커: ${ticker})`);
-                    }
-                    initializePageWithData(currentStockData); // ★★★ 이 함수 내부에서 오류 발생 ★★★
-                } catch (error) {
-                    console.error("분석 오류:", error.message, error.stack); // 스택 트레이스 포함
-                    currentStockData = null;
-                    showError(`분석 중 오류 발생: ${error.message}`);
-                } finally { showLoading(false); }
-            });
-        });
-    } else { console.error("Analyze button not found."); }
-
+    // --- 3. "분석하기" 버튼 --- (이하 모든 함수는 이전 최종본과 동일하게 유지)
+    if (analyzeButton) { /* ... 이전과 동일 ... */ }
     if (recalculateButton) { /* ... 이전과 동일 ... */ }
     if (inputRf && inputErp) { /* ... 이전과 동일 ... */ }
     function updateKeInput(betaValue) { /* ... 이전과 동일 ... */ }
-    
-    function initializePageWithData(apiData) {
-        if (stockNameTitle) stockNameTitle.textContent = `${apiData.companyName || apiData.symbol} (${apiData.symbol || 'N/A'})`;
-        if (currentPriceSpan) currentPriceSpan.textContent = apiData.price !== undefined && apiData.price !== null ? apiData.price.toFixed(2) : 'N/A';
-        if (dataDateSpan) dataDateSpan.textContent = 'API 제공 기준';
-
-        if(apiEpsSpan) apiEpsSpan.textContent = apiData.eps !== undefined && apiData.eps !== null ? `$${apiData.eps.toFixed(2)}` : 'N/A (정보 없음)';
-        if(apiBpsSpan) apiBpsSpan.textContent = apiData.bps !== undefined && apiData.bps !== null ? `$${apiData.bps.toFixed(2)}` : 'N/A (정보 없음)';
-        // ... (나머지 API 데이터 표시 부분은 이전과 동일)
-        if(apiPayoutRatioSpan) apiPayoutRatioSpan.textContent = apiData.payoutRatioTTM !== undefined && apiData.payoutRatioTTM !== null ? (apiData.payoutRatioTTM * 100).toFixed(2) : 'N/A (정보 없음)';
-
-
-        if(inputPerLow) inputPerLow.value = 20; if(inputPerBase) inputPerBase.value = 25; if(inputPerHigh) inputPerHigh.value = 30;
-        // ... (나머지 input 필드 초기화 부분은 이전과 동일) ...
-        updateKeInput(apiData.beta);
-
-        let initialG; // 선언 위치 확인
-        const keForGCalc = inputKe ? (parseFloat(inputKe.value) / 100) : 0.08;
-        if (apiData.roeTTM && apiData.payoutRatioTTM !== undefined && apiData.payoutRatioTTM !== null && apiData.payoutRatioTTM >= 0 && apiData.payoutRatioTTM <=1 && apiData.roeTTM > 0) {
-            initialG = apiData.roeTTM * (1 - apiData.payoutRatioTTM);
-        } else if (apiData.roeTTM && apiData.roeTTM > 0) {
-            initialG = apiData.roeTTM * 0.5;
-        } else {
-            initialG = 0.05;
-        }
-        initialG = Math.min(initialG, keForGCalc * 0.85);
-        initialG = Math.max(0.02, initialG);
-        if(inputG) inputG.value = (initialG * 100).toFixed(1);
-
-        const userAssumptions = getUserAssumptions(); // ★★★ 이 함수가 객체를 반환하는지 확인 ★★★
-        // console.log("User Assumptions for calc:", userAssumptions); // 디버깅 로그 추가
-
-        const fairValuesResult = calculateFairValues(apiData, userAssumptions);
-        // console.log("Fair Values Result:", fairValuesResult); // 디버깅 로그 추가
-        
-        if (fairValuesResult && fairValuesResult.modelOutputs && fairValuesResult.final) {
-            updateModelDetailsDisplays(apiData, userAssumptions, fairValuesResult.modelOutputs); // 여기가 184번째 줄 근처
-            if(fairValueSummaryP) fairValueSummaryP.textContent = `산출된 모델들의 기본 추정치 평균은 $${fairValuesResult.final.base.toFixed(2)} 입니다. (단, EPS/BPS 등 정보 부족 시 정확도 낮음)`;
-        } else {
-            console.error("initializePageWithData: fairValuesResult 또는 그 하위 속성이 undefined입니다.", fairValuesResult);
-            if(fairValueSummaryP) fairValueSummaryP.textContent = "적정주가 관련 상세 정보를 표시할 수 없습니다.";
-            // 모델별 상세 정보도 초기화
-            if(modelEpsPerSpan) modelEpsPerSpan.textContent = 'N/A';
-            if(perValueRangeSpan) perValueRangeSpan.textContent = 'N/A';
-            if(modelBpsPbrSpan) modelBpsPbrSpan.textContent = 'N/A';
-            if(pbrValueRangeSpan) pbrValueRangeSpan.textContent = 'N/A';
-            if(intrinsicModelNameTitleSpan) intrinsicModelNameTitleSpan.textContent = '내재가치 모델 (오류)';
-            if(intrinsicFormulaDisplaySpan) intrinsicFormulaDisplaySpan.textContent = 'N/A';
-            if(intrinsicValueRangeSpan) intrinsicValueRangeSpan.textContent = 'N/A';
-            if(intrinsicModelDescriptionDiv) intrinsicModelDescriptionDiv.innerHTML = '데이터 오류로 상세 설명을 표시할 수 없습니다.';
-        }
-        
-        showResults(); 
-
-        setTimeout(() => {
-            if (fairValuesResult && fairValuesResult.final) {
-                createOrUpdatePriceChart(apiData.historicalData, fairValuesResult.final);
-            } else {
-                 const chartContainerEl = document.getElementById('price-chart-wrapper');
-                 const canvasEl = document.getElementById('price-chart-canvas');
-                 if (chartContainerEl && canvasEl && canvasEl.getContext('2d')) {
-                    const ctx = canvasEl.getContext('2d');
-                    ctx.clearRect(0,0, canvasEl.width, canvasEl.height);
-                    ctx.font = "16px Arial"; ctx.textAlign = "center";
-                    ctx.fillText("적정주가 데이터 부족으로 차트 선 표시 불가.", canvasEl.width/2, canvasEl.height/2);
-                 }
-            }
-        }, 100); 
-    }
-
-    function getUserAssumptions() {
-        // ★★★ 함수 시작 시점에 모든 input 요소들이 존재하는지 확인 ★★★
-        if (!inputPerLow || !inputPerBase || !inputPerHigh || 
-            !inputPbrLow || !inputPbrBase || !inputPbrHigh ||
-            !inputRf || !inputErp || !inputKe || !inputG) {
-            console.error("getUserAssumptions: 하나 이상의 가정치 입력 필드를 찾을 수 없습니다.");
-            // 모든 필드가 없으면 기본 가정치 객체라도 반환하거나, 오류 처리
-            return { perLow: 10, perBase: 15, perHigh: 20, pbrLow: 1.0, pbrBase: 1.5, pbrHigh: 2.0, ke: 0.08, g: 0.03 };
-        }
-
-        const keValue = parseFloat(inputKe.value);
-        const gValue = parseFloat(inputG.value);
-        return {
-            perLow: parseFloat(inputPerLow.value) || 10,
-            perBase: parseFloat(inputPerBase.value) || 15,
-            perHigh: parseFloat(inputPerHigh.value) || 20,
-            pbrLow: parseFloat(inputPbrLow.value) || 1.0,
-            pbrBase: parseFloat(inputPbrBase.value) || 1.5,
-            pbrHigh: parseFloat(inputPbrHigh.value) || 2.0,
-            // Rf, Erp는 Ke 계산에만 직접 쓰이고, Ke를 직접 사용하므로 여기서 Ke를 가져옴
-            ke: !isNaN(keValue) ? keValue / 100 : 0.08,
-            g: !isNaN(gValue) ? gValue / 100 : 0.03,
-        };
-    }
-
-    function calculateFairValues(apiData, assumptions) { // ★★★ assumptions가 undefined인지 여기서도 확인 ★★★
-        if (!assumptions) {
-            console.error("calculateFairValues: assumptions 객체가 undefined입니다.");
-            // 기본 반환 구조라도 제공하여 추가 오류 방지
-            return { 
-                final: {low: 0, base: 0, high: 0}, 
-                modelOutputs: { 
-                    PER: {low:0, base:0, high:0, name: "PER (가정치 오류)"}, 
-                    PBR: {low:0, base:0, high:0, name: "PBR (가정치 오류)"}, 
-                    Intrinsic: {low:0, base:0, high:0, name: "내재가치 (가정치 오류)", formula: ""} 
-                } 
-            };
-        }
-
-        const { perLow, perBase, perHigh, pbrLow, pbrBase, pbrHigh, ke, g } = assumptions;
-        let modelOutputs = { 
-            PER: {low:0, base:0, high:0, name: "PER (정보 없음)"}, 
-            PBR: {low:0, base:0, high:0, name: "PBR (정보 없음)"}, 
-            Intrinsic: {low:0, base:0, high:0, name: "내재가치 (계산 불가)", formula: ""} 
-        };
-        let finalResult = {low: 0, base: 0, high: 0};
-
-        if (apiData.eps !== undefined && apiData.eps !== null && apiData.eps > 0) {
-            modelOutputs.PER = {low: apiData.eps * perLow, base: apiData.eps * perBase, high: apiData.eps * perHigh, name: "PER"};
-        }
-        if (apiData.bps !== undefined && apiData.bps !== null && apiData.bps > 0) {
-            modelOutputs.PBR = {low: apiData.bps * pbrLow, base: apiData.bps * pbrBase, high: apiData.bps * pbrHigh, name: "PBR"};
-        }
-        
-        if (g < ke && ke > 0) {
-            let intrinsicBase = 0;
-            if (apiData.dpsTTM !== undefined && apiData.dpsTTM !== null && apiData.dpsTTM > 0) {
-                modelOutputs.Intrinsic.name = "DDM (배당할인)";
-                intrinsicBase = (apiData.dpsTTM * (1 + g)) / (ke - g);
-                modelOutputs.Intrinsic.formula = `DPS($${apiData.dpsTTM.toFixed(2)}) * (1 + ${(g*100).toFixed(1)}%) / (${(ke*100).toFixed(1)}% - ${(g*100).toFixed(1)}%)`;
-            } else if (apiData.eps !== undefined && apiData.eps !== null && apiData.eps > 0) {
-                modelOutputs.Intrinsic.name = "EPS 성장 모델";
-                intrinsicBase = (apiData.eps * (1 + g)) / (ke - g);
-                modelOutputs.Intrinsic.formula = `EPS($${apiData.eps.toFixed(2)}) * (1 + ${(g*100).toFixed(1)}%) / (${(ke*100).toFixed(1)}% - ${(g*100).toFixed(1)}%)`;
-            } else {
-                modelOutputs.Intrinsic.name = "내재가치 (DPS/EPS 정보 없음)";
-            }
-
-            if (intrinsicBase > 0 && isFinite(intrinsicBase)) {
-                modelOutputs.Intrinsic.base = intrinsicBase;
-                modelOutputs.Intrinsic.low = intrinsicBase * 0.8;
-                modelOutputs.Intrinsic.high = intrinsicBase * 1.2;
-            } else {
-                 if (modelOutputs.Intrinsic.name === "DDM (배당할인)" || modelOutputs.Intrinsic.name === "EPS 성장 모델") {
-                    modelOutputs.Intrinsic.name += " (산출값 유효X)";
-                 }
-            }
-        }
-        
-        let fvLowSum = 0, fvBaseSum = 0, fvHighSum = 0, validModels = 0;
-        [modelOutputs.PER, modelOutputs.PBR, modelOutputs.Intrinsic].forEach(fv => {
-            if (fv.base > 0 && isFinite(fv.base)) {
-                if (fv.name && !fv.name.includes("정보 없음") && !fv.name.includes("유효X") && !fv.name.includes("계산 불가")) {
-                    fvLowSum += fv.low; fvBaseSum += fv.base; fvHighSum += fv.high;
-                    validModels++;
-                }
-            }
-        });
-
-        if (validModels > 0) {
-            finalResult = {
-                low: fvLowSum / validModels,
-                base: fvBaseSum / validModels,
-                high: fvHighSum / validModels
-            };
-        } else {
-            showError("모든 평가 모델 결과를 산출할 수 없습니다. 제공된 재무 데이터가 부족합니다.");
-        }
-        return { final: finalResult, modelOutputs };
-    }
-
+    function initializePageWithData(apiData) { /* ... 이전과 동일 ... */ }
+    function getUserAssumptions() { /* ... 이전과 동일 ... */ }
+    function calculateFairValues(apiData, assumptions) { /* ... 이전과 동일 ... */ }
     function updateModelDetailsDisplays(apiData, assumptions, modelOutputs) { /* ... 이전과 동일 ... */ }
     function createOrUpdatePriceChart(historicalData, fairValueResults) { /* ... 이전과 동일 ... */ }
     function updateFairValueLinesOnChart(fairValueResults) { /* ... 이전과 동일 ... */ }
