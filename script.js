@@ -2,8 +2,8 @@
 
 // Chart.js 관련 라이브러리가 로드되었는지 확인하고, 로드될 때까지 기다리는 함수
 function ensureChartJsIsReady(callback) {
-    if (typeof window.Chart !== 'undefined' && 
-        typeof window.moment !== 'undefined' && 
+    if (typeof window.Chart !== 'undefined' &&
+        typeof window.moment !== 'undefined' &&
         typeof Chart.register === 'function' && // Chart.js v3+ 에서는 register를 사용
         typeof window.ChartAnnotation !== 'undefined') { // ChartAnnotation 플러그인 객체 확인
         // console.log("Chart.js, Moment.js, and Annotation Plugin are ready.");
@@ -29,8 +29,8 @@ window.onload = () => {
     const currentPriceSpan = document.getElementById('current-price');
     const dataDateSpan = document.getElementById('data-date');
 
-    const priceChartCanvas = document.getElementById('price-chart-canvas');
-    let priceChartInstance = null;
+    const priceChartCanvas = document.getElementById('price-chart-canvas'); // Chart.js는 canvas에 그림
+    let priceChartInstance = null; // 생성된 Chart.js 객체 저장용
 
     const fairValueSummaryP = document.getElementById('fair-value-summary');
 
@@ -136,7 +136,7 @@ window.onload = () => {
                     }
                     currentStockData = await response.json();
                     if (currentStockData.error) throw new Error(currentStockData.error);
-                    if (!currentStockData.price || currentStockData.eps === undefined || currentStockData.bps === undefined || !currentStockData.historicalData) {
+                    if (!currentStockData.price || currentStockData.eps === undefined || currentStockData.bps === undefined || !currentStockData.historicalData || currentStockData.historicalData.length === 0) {
                          throw new Error(`핵심 재무 또는 과거 주가 데이터가 부족하여 분석할 수 없습니다. (티커: ${ticker})`);
                     }
                     initializePageWithData(currentStockData);
@@ -158,6 +158,7 @@ window.onload = () => {
                 hideError();
                 const userAssumptions = getUserAssumptions();
                 const fairValuesResult = calculateFairValues(currentStockData, userAssumptions);
+                // Chart.js는 차트 전체를 다시 그리거나, 기존 차트의 데이터를 업데이트하고 .update() 호출
                 createOrUpdatePriceChart(currentStockData.historicalData, fairValuesResult.final);
                 updateModelDetailsDisplays(currentStockData, userAssumptions, fairValuesResult.modelOutputs);
             });
@@ -230,7 +231,7 @@ window.onload = () => {
         
         showResults(); 
 
-        setTimeout(() => {
+        setTimeout(() => { // DOM 렌더링 후 차트 생성
             createOrUpdatePriceChart(apiData.historicalData, fairValuesResult.final);
         }, 100); 
     }
@@ -328,33 +329,49 @@ window.onload = () => {
     }
 
     function createOrUpdatePriceChart(historicalData, fairValueResults) {
-        const chartContainerEl = document.getElementById('price-chart-container'); 
-        if (!chartContainerEl) {
-            console.error("CRITICAL: #price-chart-container HTML 요소를 찾을 수 없습니다!");
+        const chartContainerEl = document.getElementById('price-chart-wrapper'); // Wrapper div
+        const canvasEl = document.getElementById('price-chart-canvas');
+
+        if (!chartContainerEl || !canvasEl) {
+            console.error("CRITICAL: #price-chart-wrapper 또는 #price-chart-canvas HTML 요소를 찾을 수 없습니다!");
+            if(chartContainerEl && !canvasEl) chartContainerEl.textContent = 'Canvas 요소를 찾을 수 없습니다.';
+            else if (!chartContainerEl && resultsArea) resultsArea.insertAdjacentHTML('afterbegin', '<p style="color:red;">차트 컨테이너를 찾을 수 없습니다.</p>');
             return;
         }
-        chartContainerEl.innerHTML = '';
+        // canvasEl.getContext('2d').clearRect(0, 0, canvasEl.width, canvasEl.height); // 이전 차트 지우기 (destroy로 대체)
 
         if (!historicalData || historicalData.length === 0) {
-            if (chartContainerEl) chartContainerEl.textContent = '주가 차트 데이터를 가져올 수 없습니다.';
+            if(canvasEl.getContext('2d')) { // 캔버스가 있다면 메시지 직접 그리기
+                const ctx = canvasEl.getContext('2d');
+                ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+                ctx.font = "16px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText("주가 차트 데이터를 가져올 수 없습니다.", canvasEl.width / 2, canvasEl.height / 2);
+            }
             return;
         }
-
-        // ensureChartJsIsReady 함수는 버튼 클릭 시점에 호출되므로, 여기서는 라이브러리가 준비되었다고 가정.
-        // 만약을 위해 한번 더 체크 (필수는 아님, ensureChartJsIsReady에서 이미 처리)
+        
         if (typeof window.Chart === 'undefined' || typeof window.moment === 'undefined' || typeof Chart.register !== 'function' || typeof window.ChartAnnotation === 'undefined') {
              console.error('createOrUpdatePriceChart: Chart.js 관련 라이브러리가 로드되지 않았습니다.');
-             if(chartContainerEl) chartContainerEl.textContent = '차트 라이브러리 문제 (createOrUpdate)';
+             const ctx = canvasEl.getContext('2d');
+             ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+             ctx.font = "16px Arial";
+             ctx.textAlign = "center";
+             ctx.fillText('차트 라이브러리 문제 (createOrUpdate)', canvasEl.width / 2, canvasEl.height / 2);
              return;
         }
-        Chart.register(window.ChartAnnotation); // Annotation 플러그인 등록
+        Chart.register(window.ChartAnnotation);
 
         const containerWidth = chartContainerEl.clientWidth;
         const containerHeight = chartContainerEl.clientHeight;
 
         if (containerWidth <= 0 || containerHeight <= 0) {
-            console.warn("차트 컨테이너(#price-chart-container)의 크기가 유효하지 않습니다. CSS에서 height가 명시적으로 설정되었고, 부모 요소들이 화면에 보이는지 확인하세요.");
-            if (chartContainerEl) chartContainerEl.textContent = '차트 영역 크기 오류 (CSS height: 400px; 확인)';
+            console.warn("차트 컨테이너(#price-chart-wrapper)의 크기가 유효하지 않습니다. CSS에서 height가 설정되었는지 확인하세요.");
+             const ctx = canvasEl.getContext('2d');
+             ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+             ctx.font = "14px Arial";
+             ctx.textAlign = "center";
+             ctx.fillText('차트 영역 크기 오류 (CSS height 필요)', canvasEl.width / 2, canvasEl.height / 2);
             return;
         }
         
@@ -390,12 +407,12 @@ window.onload = () => {
             datasets: [
                 {
                     type: 'line', label: '종가', data: closePrices,
-                    borderColor: 'rgb(75, 192, 192)', backgroundColor: 'rgba(75, 192, 192, 0.5)',
-                    yAxisID: 'y-axis-price', tension: 0.1
+                    borderColor: 'rgb(75, 192, 192)', backgroundColor: 'rgba(75, 192, 192, 0.1)', // 배경 투명도 조절
+                    yAxisID: 'y-axis-price', tension: 0.1, pointRadius: 0 // 점 제거
                 },
                 {
                     type: 'bar', label: '거래량', data: volumes,
-                    backgroundColor: 'rgba(153, 102, 255, 0.5)', borderColor: 'rgb(153, 102, 255)',
+                    backgroundColor: 'rgba(153, 102, 255, 0.4)', borderColor: 'rgb(153, 102, 255)',
                     yAxisID: 'y-axis-volume',
                 }
             ]
@@ -436,15 +453,15 @@ window.onload = () => {
                     'y-axis-price': {
                         type: 'linear', display: true, position: 'left',
                         title: { display: true, text: '주가 ($)' },
-                        ticks: { callback: function(value) { return '$' + value.toFixed(2); } }
+                        ticks: { callback: function(value) { return '$' + value.toFixed(0); } } // 소수점 제거
                     },
                     'y-axis-volume': {
                         type: 'linear', display: true, position: 'right',
                         title: { display: true, text: '거래량' },
                         grid: { drawOnChartArea: false, },
                         ticks: { callback: function(value) {
-                            if (value >= 1000000) return (value / 1000000) + 'M';
-                            if (value >= 1000) return (value / 1000) + 'K';
+                            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
+                            if (value >= 1000) return (value / 1000).toFixed(1) + 'K';
                             return value;
                         }}
                     }
@@ -456,39 +473,50 @@ window.onload = () => {
             if (priceChartInstance) {
                 priceChartInstance.destroy();
             }
-            priceChartInstance = new Chart(priceChartCanvas, config);
+            try {
+                priceChartInstance = new Chart(priceChartCanvas, config);
+            } catch (e) {
+                console.error("new Chart() 호출 중 예외 발생:", e);
+                if(priceChartCanvas.getContext('2d')) {
+                    const ctx = priceChartCanvas.getContext('2d');
+                    ctx.clearRect(0, 0, priceChartCanvas.width, priceChartCanvas.height);
+                    ctx.font = "14px Arial";
+                    ctx.textAlign = "center";
+                    ctx.fillText('차트 생성 실패 (new Chart 오류)', priceChartCanvas.width / 2, priceChartCanvas.height / 2);
+                }
+            }
         } else {
             console.error("priceChartCanvas is null, cannot create chart.");
         }
     }
     
-    function updateFairValueLinesOnChart(fairValueResults) { // Chart.js 용으로 수정됨
+    function updateFairValueLinesOnChart(fairValueResults) {
         if (!priceChartInstance || !priceChartInstance.options || !priceChartInstance.options.plugins || !priceChartInstance.options.plugins.annotation) {
             return;
         }
-        const annotations = {};
+        const newAnnotations = {}; // 새 annotation 객체
          if (fairValueResults.base > 0 && isFinite(fairValueResults.base)) {
-            annotations['fairValueBaseLine'] = {
+            newAnnotations['fairValueBaseLine'] = {
                 type: 'line', yMin: fairValueResults.base, yMax: fairValueResults.base,
                 borderColor: 'rgba(0, 123, 255, 0.8)', borderWidth: 2,
                 label: { content: `기본: $${fairValueResults.base.toFixed(2)}`, enabled: true, position: 'end', backgroundColor: 'rgba(0, 123, 255, 0.8)', color: 'white', font: { weight: 'bold' } }
             };
         }
         if (fairValueResults.low > 0 && isFinite(fairValueResults.low)) {
-            annotations['fairValueLowLine'] = {
+            newAnnotations['fairValueLowLine'] = {
                 type: 'line', yMin: fairValueResults.low, yMax: fairValueResults.low,
                 borderColor: 'rgba(255, 120, 117, 0.7)', borderWidth: 1, borderDash: [6, 6],
                 label: { content: `최저: $${fairValueResults.low.toFixed(2)}`, enabled: true, position: 'end', backgroundColor: 'rgba(255, 120, 117, 0.7)', color: 'white'}
             };
         }
         if (fairValueResults.high > 0 && isFinite(fairValueResults.high)) {
-            annotations['fairValueHighLine'] = {
+            newAnnotations['fairValueHighLine'] = {
                 type: 'line', yMin: fairValueResults.high, yMax: fairValueResults.high,
                 borderColor: 'rgba(0, 180, 130, 0.7)', borderWidth: 1, borderDash: [6, 6],
                 label: { content: `최고: $${fairValueResults.high.toFixed(2)}`, enabled: true, position: 'end', backgroundColor: 'rgba(0, 180, 130, 0.7)', color: 'white'}
             };
         }
-        priceChartInstance.options.plugins.annotation.annotations = annotations;
+        priceChartInstance.options.plugins.annotation.annotations = newAnnotations; // 새 객체로 교체
         priceChartInstance.update();
     }
     
