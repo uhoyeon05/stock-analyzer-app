@@ -39,18 +39,79 @@
 
             <h4>평가 모델별 분석 근거 및 사용자 설정</h4>
             <div id="model-details-area" class="model-details">
-                {/* ... (이전 HTML의 PER, PBR, 내재가치 모델 입력 및 표시 부분 그대로 유지) ... */}
+                <div class="model-item">
+                    <strong>PER 모델:</strong>
+                    <ul>
+                        <li>목표 PER (낮음/기본/높음):
+                            <input type="number" step="0.1" id="input-per-low" class="assumption-input"> /
+                            <input type="number" step="0.1" id="input-per-base" class="assumption-input"> /
+                            <input type="number" step="0.1" id="input-per-high" class="assumption-input">
+                        </li>
+                        <li>계산 근거: 현재 EPS (<span class="inline-data" id="model-eps-per"></span>) * 목표 PER</li>
+                        <li>산출 주가 (낮음/기본/높음): <span id="per-value-range"></span></li>
+                    </ul>
+                </div>
+                <div class="model-item">
+                    <strong>PBR 모델:</strong>
+                    <ul>
+                        <li>목표 PBR (낮음/기본/높음):
+                            <input type="number" step="0.01" id="input-pbr-low" class="assumption-input"> /
+                            <input type="number" step="0.01" id="input-pbr-base" class="assumption-input"> /
+                            <input type="number" step="0.01" id="input-pbr-high" class="assumption-input">
+                        </li>
+                        <li>계산 근거: 현재 BPS (<span class="inline-data" id="model-bps-pbr"></span>) * 목표 PBR</li>
+                        <li>산출 주가 (낮음/기본/높음): <span id="pbr-value-range"></span></li>
+                    </ul>
+                </div>
+                <div class="model-item">
+                    <strong id="intrinsic-model-name-title">내재가치 모델:</strong>
+                    <ul>
+                        <li>
+                            요구수익률(Ke): <input type="number" step="0.1" id="input-ke" class="assumption-input" title="무위험수익률(Rf) + Beta * 주식위험프리미엄(ERP) 로 계산됨. 직접 수정 가능.">%
+                            (Rf: <input type="number" step="0.1" id="input-rf" class="assumption-input assumption-small" value="3.0">% +
+                             Beta (<span id="data-beta-display">N/A</span>) *
+                             ERP: <input type="number" step="0.1" id="input-erp" class="assumption-input assumption-small" value="5.0">%)
+                        </li>
+                        <li>
+                            적용 성장률(g): <input type="number" step="0.1" id="input-g" class="assumption-input">%
+                        </li>
+                        <li id="intrinsic-model-formula">계산 근거: <span id="intrinsic-formula-display"></span></li>
+                        <li>산출 주가 (낮음/기본/높음): <span id="intrinsic-value-range"></span></li>
+                    </ul>
+                    <div id="intrinsic-model-description" class="model-description">
+                        {/* 내재가치 모델 설명 표시될 곳 */}
+                    </div>
+                </div>
             </div>
 
             <button id="recalculate-button">입력값으로 재계산</button>
 
             <h4>주요 지표 현황 및 의미</h4>
             <ul id="financial-indicators-list" class="indicators-list">
-                {/* ... (이전 HTML의 주요 지표 표시 부분 그대로 유지) ... */}
+                <li><strong>EPS (TTM):</strong> <span id="api-eps"></span>
+                    <p class="indicator-desc">(주당순이익: 기업이 1주당 얼마의 순이익을 벌었는지 나타내는 지표)</p></li>
+                <li><strong>BPS (TTM):</strong> <span id="api-bps"></span>
+                    <p class="indicator-desc">(주당순자산: 기업의 순자산을 총 주식 수로 나눈 값, 기업의 안정성 지표)</p></li>
+                <li><strong>DPS (연간 TTM):</strong> <span id="api-dps"></span>
+                    <p class="indicator-desc">(주당배당금: 1주당 지급된 배당금)</p></li>
+                <li><strong>현재 PER (TTM):</strong> <span id="api-per"></span>배
+                    <p class="indicator-desc">(주가수익비율: 현재 주가 / EPS. 이익 대비 주가 수준)</p></li>
+                <li><strong>현재 PBR (TTM):</strong> <span id="api-pbr"></span>배
+                    <p class="indicator-desc">(주가순자산비율: 현재 주가 / BPS. 순자산 대비 주가 수준)</p></li>
+                <li><strong>현재 배당수익률 (TTM):</strong> <span id="api-dividend-yield"></span>%
+                    <p class="indicator-desc">(현재 주가 대비 DPS의 비율)</p></li>
+                <li><strong>ROE (TTM):</strong> <span id="api-roe"></span>%
+                    <p class="indicator-desc">(자기자본이익률: 자기자본으로 얼마나 효율적으로 이익을 내는지 보여줌)</p></li>
+                <li><strong>Beta:</strong> <span id="api-beta"></span>
+                    <p class="indicator-desc">(시장 대비 주가 변동성 지표. 1보다 크면 시장보다 변동성이 큼)</p></li>
+                <li><strong>배당성향 (TTM):</strong> <span id="api-payout-ratio"></span>%
+                    <p class="indicator-desc">(순이익 중 배당금으로 지급된 비율)</p></li>
             </ul>
+
              <p class="disclaimer">본 분석은 제한된 데이터와 일반적인 가정을 바탕으로 한 참고용이며, 투자 결정의 근거가 될 수 없습니다. 실제 투자 시에는 보다 상세한 분석과 전문가의 조언을 구하시기 바랍니다.</p>
         </div>
     </div>
+
     <script src="script.js" defer></script>
 </body>
 </html>
