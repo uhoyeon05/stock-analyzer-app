@@ -3,116 +3,100 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>간단 적정주가 분석</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Chart.js 기본 테스트</title>
+    <style>
+        /* 아주 기본적인 스타일 */
+        body { display: flex; justify-content: center; align-items: center; min-height: 90vh; margin: 0; font-family: sans-serif; background-color: #f0f0f0; }
+        .chart-container { width: 80%; max-width: 600px; padding: 20px; background-color: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js" defer></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-adapter-moment/1.0.1/chartjs-adapter-moment.min.js" defer></script> 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/1.4.0/chartjs-plugin-annotation.min.js" defer></script>
-</head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-adapter-moment/1.0.1/chartjs-adapter-moment.min.js" defer></script>
+    </head>
 <body>
-    <div class="container">
-        <h1>간단 적정주가 분석기</h1>
-
-        <div class="input-area">
-            <label for="ticker-input">종목 티커 입력 (예: AAPL Apple Inc.):</label>
-            <div class="autocomplete-container">
-                <input type="text" id="ticker-input" placeholder="티커 또는 회사명 입력...">
-                <div id="autocomplete-list" class="autocomplete-items"></div>
-            </div>
-            <button id="analyze-button">분석하기</button>
-        </div>
-
-        <div id="loading-indicator" class="loading" style="display: none;">분석 중...</div>
-        <div id="error-message" class="error" style="display: none;"></div>
-
-        <div id="results-area" style="display: none;">
-            <h2 id="stock-name-title"></h2>
-            <p><strong>현재(전일 종가):</strong> $<span id="current-price"></span></p>
-            <p><strong>기준일:</strong> <span id="data-date">API 제공 기준</span></p>
-
-            <h3>주가 차트 (1년) 및 적정주가 범위</h3>
-            <div id="price-chart-wrapper" style="width: 100%; height: 400px; margin-bottom: 20px; position: relative;">
-                <canvas id="price-chart-canvas"></canvas>
-            </div>
-            <p id="fair-value-summary" style="text-align: center; font-style: italic;"></p>
-
-
-            <h4>평가 모델별 분석 근거 및 사용자 설정</h4>
-            <div id="model-details-area" class="model-details">
-                <div class="model-item">
-                    <strong>PER 모델:</strong>
-                    <ul>
-                        <li>목표 PER (낮음/기본/높음):
-                            <input type="number" step="0.1" id="input-per-low" class="assumption-input"> /
-                            <input type="number" step="0.1" id="input-per-base" class="assumption-input"> /
-                            <input type="number" step="0.1" id="input-per-high" class="assumption-input">
-                        </li>
-                        <li>계산 근거: 현재 EPS (<span class="inline-data" id="model-eps-per"></span>) * 목표 PER</li>
-                        <li>산출 주가 (낮음/기본/높음): <span id="per-value-range"></span></li>
-                    </ul>
-                </div>
-                <div class="model-item">
-                    <strong>PBR 모델:</strong>
-                    <ul>
-                        <li>목표 PBR (낮음/기본/높음):
-                            <input type="number" step="0.01" id="input-pbr-low" class="assumption-input"> /
-                            <input type="number" step="0.01" id="input-pbr-base" class="assumption-input"> /
-                            <input type="number" step="0.01" id="input-pbr-high" class="assumption-input">
-                        </li>
-                        <li>계산 근거: 현재 BPS (<span class="inline-data" id="model-bps-pbr"></span>) * 목표 PBR</li>
-                        <li>산출 주가 (낮음/기본/높음): <span id="pbr-value-range"></span></li>
-                    </ul>
-                </div>
-                <div class="model-item">
-                    <strong id="intrinsic-model-name-title">내재가치 모델:</strong>
-                    <ul>
-                        <li>
-                            요구수익률(Ke): <input type="number" step="0.1" id="input-ke" class="assumption-input" title="무위험수익률(Rf) + Beta * 주식위험프리미엄(ERP) 로 계산됨. 직접 수정 가능.">%
-                            (Rf: <input type="number" step="0.1" id="input-rf" class="assumption-input assumption-small" value="3.0">% +
-                             Beta (<span id="data-beta-display">N/A</span>) *
-                             ERP: <input type="number" step="0.1" id="input-erp" class="assumption-input assumption-small" value="5.0">%)
-                        </li>
-                        <li>
-                            적용 성장률(g): <input type="number" step="0.1" id="input-g" class="assumption-input">%
-                        </li>
-                        <li id="intrinsic-model-formula">계산 근거: <span id="intrinsic-formula-display"></span></li>
-                        <li>산출 주가 (낮음/기본/높음): <span id="intrinsic-value-range"></span></li>
-                    </ul>
-                    <div id="intrinsic-model-description" class="model-description">
-                        {/* 내재가치 모델 설명 표시될 곳 */}
-                    </div>
-                </div>
-            </div>
-
-            <button id="recalculate-button">입력값으로 재계산</button>
-
-            <h4>주요 지표 현황 및 의미</h4>
-            <ul id="financial-indicators-list" class="indicators-list">
-                <li><strong>EPS (TTM):</strong> <span id="api-eps"></span>
-                    <p class="indicator-desc">(주당순이익: 기업이 1주당 얼마의 순이익을 벌었는지 나타내는 지표)</p></li>
-                <li><strong>BPS (TTM):</strong> <span id="api-bps"></span>
-                    <p class="indicator-desc">(주당순자산: 기업의 순자산을 총 주식 수로 나눈 값, 기업의 안정성 지표)</p></li>
-                <li><strong>DPS (연간 TTM):</strong> <span id="api-dps"></span>
-                    <p class="indicator-desc">(주당배당금: 1주당 지급된 배당금)</p></li>
-                <li><strong>현재 PER (TTM):</strong> <span id="api-per"></span>배
-                    <p class="indicator-desc">(주가수익비율: 현재 주가 / EPS. 이익 대비 주가 수준)</p></li>
-                <li><strong>현재 PBR (TTM):</strong> <span id="api-pbr"></span>배
-                    <p class="indicator-desc">(주가순자산비율: 현재 주가 / BPS. 순자산 대비 주가 수준)</p></li>
-                <li><strong>현재 배당수익률 (TTM):</strong> <span id="api-dividend-yield"></span>%
-                    <p class="indicator-desc">(현재 주가 대비 DPS의 비율)</p></li>
-                <li><strong>ROE (TTM):</strong> <span id="api-roe"></span>%
-                    <p class="indicator-desc">(자기자본이익률: 자기자본으로 얼마나 효율적으로 이익을 내는지 보여줌)</p></li>
-                <li><strong>Beta:</strong> <span id="api-beta"></span>
-                    <p class="indicator-desc">(시장 대비 주가 변동성 지표. 1보다 크면 시장보다 변동성이 큼)</p></li>
-                <li><strong>배당성향 (TTM):</strong> <span id="api-payout-ratio"></span>%
-                    <p class="indicator-desc">(순이익 중 배당금으로 지급된 비율)</p></li>
-            </ul>
-
-            <p class="disclaimer">본 분석은 제한된 데이터와 일반적인 가정을 바탕으로 한 참고용이며, 투자 결정의 근거가 될 수 없습니다. 실제 투자 시에는 보다 상세한 분석과 전문가의 조언을 구하시기 바랍니다.</p>
-        </div>
+    <div class="chart-container">
+        <canvas id="mySimpleChart"></canvas>
     </div>
 
-    <script src="script.js"></script>
+    <script>
+        // Chart.js 라이브러리가 로드될 때까지 기다리는 함수
+        function ensureBasicChartJsReady(callback) {
+            if (typeof window.Chart !== 'undefined' && typeof window.moment !== 'undefined' && typeof Chart.register === 'function') {
+                console.log("기본 테스트: Chart.js와 Moment.js가 준비되었습니다.");
+                callback();
+            } else {
+                console.warn("기본 테스트: Chart.js 또는 Moment.js가 아직 준비되지 않았습니다. 200ms 후 재시도합니다...");
+                setTimeout(() => ensureBasicChartJsReady(callback), 200);
+            }
+        }
+
+        // window.onload는 모든 리소스(외부 스크립트 포함) 로드 후 실행
+        window.onload = () => {
+            ensureBasicChartJsReady(() => {
+                const ctx = document.getElementById('mySimpleChart');
+                if (!ctx) {
+                    console.error("기본 테스트: #mySimpleChart 캔버스 요소를 찾을 수 없습니다!");
+                    return;
+                }
+
+                try {
+                    console.log("기본 테스트: 차트 생성을 시도합니다...");
+                    const myChart = new Chart(ctx, {
+                        type: 'bar', // 간단한 바 차트
+                        data: {
+                            labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
+                            datasets: [{
+                                label: '# of Votes',
+                                data: [12, 19, 3, 5, 2, 3],
+                                backgroundColor: [
+                                    'rgba(255, 99, 132, 0.2)',
+                                    'rgba(54, 162, 235, 0.2)',
+                                    'rgba(255, 206, 86, 0.2)',
+                                    'rgba(75, 192, 192, 0.2)',
+                                    'rgba(153, 102, 255, 0.2)',
+                                    'rgba(255, 159, 64, 0.2)'
+                                ],
+                                borderColor: [
+                                    'rgba(255, 99, 132, 1)',
+                                    'rgba(54, 162, 235, 1)',
+                                    'rgba(255, 206, 86, 1)',
+                                    'rgba(75, 192, 192, 1)',
+                                    'rgba(153, 102, 255, 1)',
+                                    'rgba(255, 159, 64, 1)'
+                                ],
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            scales: {
+                                y: {
+                                    beginAtZero: true
+                                }
+                            },
+                            responsive: true,
+                            maintainAspectRatio: true // 컨테이너 비율 유지 (false로 하면 height가 적용됨)
+                        }
+                    });
+                    console.log("기본 테스트: 차트 객체가 성공적으로 생성되었습니다!", myChart);
+                    // 성공 메시지를 화면에도 표시 (선택적)
+                    const container = document.querySelector('.chart-container');
+                    const successMsg = document.createElement('p');
+                    successMsg.textContent = 'Chart.js 기본 바 차트가 성공적으로 로드되었습니다!';
+                    successMsg.style.textAlign = 'center';
+                    successMsg.style.color = 'green';
+                    container.appendChild(successMsg);
+
+                } catch (e) {
+                    console.error("기본 테스트: Chart.js 차트 생성 중 예외 발생:", e);
+                    const container = document.querySelector('.chart-container');
+                    const errorMsg = document.createElement('p');
+                    errorMsg.textContent = 'Chart.js 차트 생성 중 오류 발생. 콘솔을 확인하세요.';
+                    errorMsg.style.textAlign = 'center';
+                    errorMsg.style.color = 'red';
+                    container.appendChild(errorMsg);
+                }
+            });
+        };
+    </script>
 </body>
 </html>
